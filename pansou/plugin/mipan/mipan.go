@@ -75,19 +75,23 @@ func (p *MipanPlugin) doSearch(client *http.Client, keyword string, ext map[stri
 
 	resp, err := client.Do(req)
 	if err != nil {
+		fmt.Printf("[%s] 请求失败: %v\n", Source, err)
 		return nil, fmt.Errorf("[%s] 请求失败: %w", Source, err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
 		respBody, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("[%s] 状态码 %d: %s", Source, resp.StatusCode, string(respBody))
+		fmt.Printf("[%s] 状态码 %d: %s\n", Source, resp.StatusCode, string(respBody))
+		return nil, fmt.Errorf("[%s] 状态码 %d", Source, resp.StatusCode)
 	}
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return nil, fmt.Errorf("[%s] 读取响应失败: %w", Source, err)
 	}
+
+	fmt.Printf("[%s] 收到响应, 大小: %d bytes, 关键词: %s\n", Source, len(respBody), keyword)
 
 	return parseMipanResponse(respBody, keyword)
 }
@@ -99,7 +103,6 @@ type MipanResponse struct {
 	Message string `json:"message"`
 	Data    struct {
 		Total        int                    `json:"total"`
-		Links        []MipanLink            `json:"links"`
 		MergedByType map[string][]MipanLink `json:"merged_by_type"`
 	} `json:"data"`
 }
@@ -108,69 +111,101 @@ type MipanLink struct {
 	URL      string `json:"url"`
 	Password string `json:"password"`
 	Note     string `json:"note"`
+	Datetime string `json:"datetime"`
+	Source   string `json:"source"`
+}
+
+// cleanURL 清理URL中的反引号和多余字符
+func cleanURL(rawURL string) string {
+	url := strings.TrimSpace(rawURL)
+	// 去掉首尾的反引号
+	url = strings.Trim(url, "`")
+	// 去掉可能的其他空白
+	url = strings.TrimSpace(url)
+	return url
+}
+
+// parseDatetime 解析API返回的时间字符串
+func parseDatetime(dt string) time.Time {
+	if dt == "" {
+		return time.Now()
+	}
+	// 尝试RFC3339格式: 2025-12-29T09:20:00+08:00
+	t, err := time.Parse(time.RFC3339, dt)
+	if err != nil {
+		return time.Now()
+	}
+	return t
 }
 
 func parseMipanResponse(body []byte, keyword string) ([]model.SearchResult, error) {
 	var resp MipanResponse
 	if err := json.Unmarshal(body, &resp); err != nil {
+		fmt.Printf("[%s] JSON解析失败: %v\n", Source, err)
 		return nil, fmt.Errorf("JSON解析失败: %w", err)
 	}
 
 	if resp.Code != 0 {
+		fmt.Printf("[%s] API返回错误: code=%d, message=%s\n", Source, resp.Code, resp.Message)
 		return nil, fmt.Errorf("API错误: %s", resp.Message)
 	}
 
+	fmt.Printf("[%s] API报告total: %d, 网盘类型数: %d\n", Source, resp.Data.Total, len(resp.Data.MergedByType))
+
 	results := make([]model.SearchResult, 0)
 	seen := make(map[string]bool)
+	dupCount := 0
 
-	// 优先用 merged_by_type（按网盘分类，更全）
-	items := resp.Data.Links
-	if len(resp.Data.MergedByType) > 0 {
-		items = make([]MipanLink, 0)
-		for _, links := range resp.Data.MergedByType {
-			items = append(items, links...)
-		}
-	}
+	// 遍历 merged_by_type（按网盘分类）
+	for cloudType, links := range resp.Data.MergedByType {
+		for idx, link := range links {
+			// 清理URL中的反引号
+			cleanedURL := cleanURL(link.URL)
+			if cleanedURL == "" {
+				continue
+			}
 
-	now := time.Now()
+			// 用清理后的URL去重
+			if seen[cleanedURL] {
+				dupCount++
+				continue
+			}
+			seen[cleanedURL] = true
 
-	for idx, link := range items {
-		if link.URL == "" {
-			continue
-		}
-		if seen[link.URL] {
-			continue
-		}
-		seen[link.URL] = true
+			// 标题
+			title := strings.TrimSpace(link.Note)
+			if title == "" {
+				title = fmt.Sprintf("%s - %s资源", keyword, cloudType)
+			}
 
-		cloudType := detectCloudType(link.URL)
-		title := strings.TrimSpace(link.Note)
-		if title == "" {
-			title = fmt.Sprintf("%s - %s资源", keyword, cloudType)
-		}
+			// 用索引生成UniqueID，避免URL中的特殊字符导致问题
+			uniqueID := fmt.Sprintf("mipan-%s-%d", cloudType, idx)
+			messageID := fmt.Sprintf("mipan-%s-%d", cloudType, idx)
 
-		uniqueID := fmt.Sprintf("mipan-%s", link.URL)
-		messageID := fmt.Sprintf("mipan-%d", idx)
+			// 解析时间
+			dt := parseDatetime(link.Datetime)
 
-		results = append(results, model.SearchResult{
-			MessageID: messageID,
-			UniqueID:  uniqueID,
-			Channel:   "mipan",
-			Datetime:  now,
-			Title:     title,
-			Content:   fmt.Sprintf("关键词: %s | 类型: %s", keyword, cloudType),
-			Links: []model.Link{
-				{
-					URL:      link.URL,
-					Type:     cloudType,
-					Password: link.Password,
+			results = append(results, model.SearchResult{
+				MessageID: messageID,
+				UniqueID:  uniqueID,
+				Channel:   "mipan",
+				Datetime:  dt,
+				Title:     title,
+				Content:   fmt.Sprintf("关键词: %s | 类型: %s", keyword, cloudType),
+				Links: []model.Link{
+					{
+						URL:      cleanedURL,
+						Type:     cloudType,
+						Password: link.Password,
+					},
 				},
-			},
-			Tags: []string{cloudType},
-		})
+				Tags: []string{cloudType},
+			})
+		}
 	}
 
-	fmt.Printf("[%s] 解析到 %d 条结果 (API报告total: %d)\n", Source, len(results), resp.Data.Total)
+	fmt.Printf("[%s] 解析完成: %d 条结果 (去重: %d, API total: %d)\n",
+		Source, len(results), dupCount, resp.Data.Total)
 	return results, nil
 }
 
