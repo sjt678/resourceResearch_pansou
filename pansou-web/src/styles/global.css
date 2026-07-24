@@ -1,0 +1,122 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-body);
+  background-color: var(--color-bg);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.6;
+}
+
+a {
+  color: var(--color-primary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+}
+
+button {
+  font-family: inherit;
+}
+
+/* 滚动条美化 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* 通用容器 */
+.container {
+  max-width: var(--container-max);
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* 关键词高亮 */
+.hl-keyword {
+  color: var(--color-primary);
+  font-weight: 600;
+  background: linear-gradient(transparent 60%, var(--color-primary-light) 60%);
+}
+
+/* 卡片入场动画 */
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.card-enter {
+  animation: card-in 0.4s ease-out backwards;
+}
+
+/* 骨架屏闪光 */
+@keyframes skeleton-flash {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-border) 25%,
+    #f1f5f9 37%,
+    var(--color-border) 63%
+  );
+  background-size: 200% 100%;
+  animation: skeleton-flash 1.4s ease infinite;
+  border-radius: var(--radius-sm);
+}
+
+/* Element Plus 主色覆盖 */
+:root {
+  --el-color-primary: var(--color-primary);
+  --el-color-primary-light-3: #4fc4f1;
+  --el-color-primary-light-5: #80d5f4;
+  --el-color-primary-light-7: #b3e6f8;
+  --el-color-primary-light-8: #cfeffb;
+  --el-color-primary-light-9: var(--color-primary-light);
+  --el-color-primary-dark-2: var(--color-primary-hover);
+  --el-border-radius-base: var(--radius-sm);
+}
+
+/* 响应式断点工具 */
+@media (max-width: 768px) {
+  .container {
+    padding: 0 16px;
+  }
+}

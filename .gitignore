@@ -1,0 +1,21 @@
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 运行时产物
+pansou/cache/
+pansou/pansou
+pansou/pansou.exe
+pansou-web/dist/
+pansou-web/node_modules/
+
+# 备份的旧 .git 目录
+.git_backup_old/
+
+# 日志
+*.log
