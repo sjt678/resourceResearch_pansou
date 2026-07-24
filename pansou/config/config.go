@@ -53,6 +53,10 @@ type Config struct {
 	AuthTokenExpiry time.Duration     // Token有效期
 	AuthJWTSecret   string            // JWT签名密钥
 
+	// TMDB 相关配置（用于搜索建议）
+	TMDBAPIKey string // TMDB v3 API Key
+	TMDBProxy  string // 访问 TMDB 用的代理（可选，国内访问慢时配置）
+	TMDBEnabled bool  // 是否启用 TMDB 建议
 }
 
 // 全局配置实例
@@ -106,6 +110,10 @@ func Init() {
 		AuthTokenExpiry: getAuthTokenExpiry(),
 		AuthJWTSecret:   getAuthJWTSecret(),
 
+		// TMDB 相关配置
+		TMDBAPIKey:  os.Getenv("TMDB_API_KEY"),
+		TMDBProxy:   os.Getenv("TMDB_PROXY"),
+		TMDBEnabled: os.Getenv("TMDB_API_KEY") != "",
 	}
 	
 	// 应用GC配置

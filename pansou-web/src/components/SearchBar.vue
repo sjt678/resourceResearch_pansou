@@ -17,6 +17,7 @@ const input = ref(props.modelValue)
 const focused = ref(false)
 const suggestions = ref([])
 let suggestTimer = null
+let suggestController = null
 
 watch(
   () => props.modelValue,
@@ -25,7 +26,7 @@ watch(
   }
 )
 
-// 输入变化时实时更新联想建议
+// 输入变化时实时更新联想建议（异步，调后端 /api/suggest）
 watch(input, v => {
   clearTimeout(suggestTimer)
   const kw = (v || '').trim()
@@ -33,10 +34,21 @@ watch(input, v => {
     suggestions.value = []
     return
   }
-  // 防抖，避免输入过快频繁计算
-  suggestTimer = setTimeout(() => {
-    suggestions.value = suggest(kw, 8)
-  }, 120)
+  // 防抖，避免输入过快频繁请求
+  suggestTimer = setTimeout(async () => {
+    // 取消上一次未完成请求
+    if (suggestController) suggestController.abort()
+    suggestController = new AbortController()
+    const myController = suggestController
+    try {
+      const list = await suggest(kw, 8, myController.signal)
+      // 如果已经被更新的请求取代，丢弃结果
+      if (myController !== suggestController) return
+      suggestions.value = list || []
+    } catch {
+      // 忽略
+    }
+  }, 180)
 })
 
 // 同时显示建议与历史

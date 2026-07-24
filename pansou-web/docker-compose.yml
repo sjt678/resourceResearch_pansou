@@ -12,7 +12,7 @@ services:
   # 后端服务（如已有独立 compose，可删除此段并在 nginx.conf 里改成实际后端地址）
   pansou:
     build: ../pansou
-    image: pansou:latest
+    image: pansou2:latest
     container_name: pansou
     ports:
       - "8888:8888"

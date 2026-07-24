@@ -12,6 +12,11 @@ import (
 func SetupRouter(searchService *service.SearchService) *gin.Engine {
 	// 设置搜索服务
 	SetSearchService(searchService)
+
+	// 初始化 TMDB 服务（如果配置了 API Key）
+	if config.AppConfig != nil && config.AppConfig.TMDBEnabled {
+		SetTMDBService(service.NewTMDBService())
+	}
 	
 	// 设置为生产模式
 	gin.SetMode(gin.ReleaseMode)
@@ -40,6 +45,9 @@ func SetupRouter(searchService *service.SearchService) *gin.Engine {
 		api.POST("/search", SearchHandler)
 		api.GET("/search", SearchHandler) // 添加GET方式支持
 		api.POST("/check/links", CheckHandler)
+
+		// 搜索建议接口（输入框联想）
+		api.GET("/suggest", SuggestHandler)
 		
 		// 健康检查接口
 		api.GET("/health", func(c *gin.Context) {

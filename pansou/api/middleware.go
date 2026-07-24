@@ -84,11 +84,12 @@ func AuthMiddleware() gin.HandlerFunc {
 		}
 
 		// 定义公开接口（不需要认证）
-		publicPaths := []string{
-			"/api/auth/login",
-			"/api/auth/logout",
-			"/api/health", // 健康检查接口可选择是否需要认证
-		}
+	publicPaths := []string{
+		"/api/auth/login",
+		"/api/auth/logout",
+		"/api/health",  // 健康检查接口可选择是否需要认证
+		"/api/suggest", // 搜索建议接口公开，便于未登录用户联想
+	}
 
 		// 检查当前路径是否是公开接口
 		path := c.Request.URL.Path

@@ -4,7 +4,7 @@ services:
   pansou:
 #    image: ghcr.io/fish2018/pansou:latest
     build: .
-    image: pansou:latest
+    image: pansou2:latest
     container_name: pansou
     restart: unless-stopped
     ports:
@@ -30,6 +30,10 @@ services:
       # - AUTH_JWT_SECRET=your-secret-key-here
       # 如果需要代理，取消下面的注释并设置代理地址
       # - PROXY=socks5://proxy:7897
+      # TMDB 搜索建议配置（输入框联想）
+      - TMDB_API_KEY=13bf320bec60b9a3c2ec2bbf92efa85c
+      # 国内访问 TMDB 慢时可配置代理（留空直连）
+      # - TMDB_PROXY=socks5://proxy:7897
     volumes:
       - pansou-cache:/app/cache
     networks:
