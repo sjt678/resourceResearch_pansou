@@ -34,6 +34,8 @@ services:
       # TMDB 搜索建议配置
       - TMDB_API_KEY=13bf320bec60b9a3c2ec2bbf92efa85c
       - TMDB_BASE_URL=https://tmdb-proxy.songjt90.workers.dev/3
+      # TG 搜索反代（国内服务器被墙时配置，绕过 t.me 访问限制）
+      - TG_BASE_URL=https://data-source.songjt90.workers.dev
       # 认证配置（可选）
       # - AUTH_ENABLED=true
       # - AUTH_USERS=admin:admin123,user:pass456

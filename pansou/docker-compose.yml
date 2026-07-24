@@ -35,6 +35,8 @@ services:
       - TMDB_BASE_URL=https://tmdb-proxy.songjt90.workers.dev/3
       # 国内访问 TMDB 慢时可配置代理（留空直连）
       # - TMDB_PROXY=socks5://proxy:7897
+      # TG 搜索反代（国内服务器被墙时配置，绕过 t.me 访问限制）
+      - TG_BASE_URL=https://data-source.songjt90.workers.dev
     volumes:
       - pansou-cache:/app/cache
     networks:

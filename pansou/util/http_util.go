@@ -158,7 +158,12 @@ func FetchHTML(targetURL string) (string, error) {
 
 // BuildSearchURL 构建搜索URL
 func BuildSearchURL(channel string, keyword string, nextPageParam string) string {
-	baseURL := "https://t.me/s/" + channel
+	// 默认使用 t.me，支持通过 TG_BASE_URL 环境变量自建反代绕墙
+	base := "https://t.me"
+	if config.AppConfig != nil && config.AppConfig.TGBaseURL != "" {
+		base = strings.TrimRight(config.AppConfig.TGBaseURL, "/")
+	}
+	baseURL := base + "/s/" + channel
 	if keyword != "" {
 		baseURL += "?q=" + url.QueryEscape(keyword)
 		if nextPageParam != "" {

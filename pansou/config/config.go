@@ -58,6 +58,9 @@ type Config struct {
 	TMDBProxy   string // 访问 TMDB 用的代理（可选，国内访问慢时配置）
 	TMDBBaseURL string // TMDB API 基础 URL（可选，用于自建反代，默认官方源）
 	TMDBEnabled bool   // 是否启用 TMDB 建议
+
+	// TG 搜索相关配置
+	TGBaseURL string // Telegram 搜索基础 URL（可选，用于自建反代绕墙，默认 https://t.me）
 }
 
 // 全局配置实例
@@ -116,6 +119,9 @@ func Init() {
 		TMDBProxy:   os.Getenv("TMDB_PROXY"),
 		TMDBBaseURL: os.Getenv("TMDB_BASE_URL"),
 		TMDBEnabled: os.Getenv("TMDB_API_KEY") != "",
+
+		// TG 搜索相关配置
+		TGBaseURL: os.Getenv("TG_BASE_URL"),
 	}
 	
 	// 应用GC配置
