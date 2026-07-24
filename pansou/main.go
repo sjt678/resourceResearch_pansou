@@ -112,6 +112,7 @@ import (
 	_ "pansou/plugin/duanjuw"
 	_ "pansou/plugin/jupansou"
 	_ "pansou/plugin/lingjisp"
+	_ "pansou/plugin/mipan"
 	_ "pansou/plugin/panzun"
 	_ "pansou/plugin/quarktv"
     _ "pansou/plugin/yunso"
