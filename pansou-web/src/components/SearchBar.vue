@@ -26,7 +26,8 @@ watch(
   }
 )
 
-// 输入变化时实时更新联想建议（异步，调后端 /api/suggest）
+// 输入变化时实时更新联想建议
+// 策略：先同步显示本地词库（0ms），再异步请求 TMDB 补充
 watch(input, v => {
   clearTimeout(suggestTimer)
   const kw = (v || '').trim()
@@ -34,21 +35,25 @@ watch(input, v => {
     suggestions.value = []
     return
   }
-  // 防抖，避免输入过快频繁请求
-  suggestTimer = setTimeout(async () => {
+  // 防抖：80ms（降低延迟，本地匹配会立即显示）
+  suggestTimer = setTimeout(() => {
     // 取消上一次未完成请求
     if (suggestController) suggestController.abort()
     suggestController = new AbortController()
     const myController = suggestController
-    try {
-      const list = await suggest(kw, 8, myController.signal)
+
+    // 调用新的回调式 suggest：立即拿到本地匹配，异步更新 TMDB 结果
+    const { immediate } = suggest(kw, 8, myController.signal, (names, source) => {
       // 如果已经被更新的请求取代，丢弃结果
       if (myController !== suggestController) return
-      suggestions.value = list || []
-    } catch {
-      // 忽略
+      suggestions.value = names || []
+    })
+
+    // 立即显示本地匹配结果（0ms）
+    if (immediate && immediate.length) {
+      suggestions.value = immediate
     }
-  }, 180)
+  }, 80)
 })
 
 // 同时显示建议与历史

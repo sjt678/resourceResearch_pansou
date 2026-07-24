@@ -51,7 +51,11 @@ func NewTMDBService() *TMDBService {
 	if config.AppConfig != nil {
 		s.apiKey = config.AppConfig.TMDBAPIKey
 		s.proxy = config.AppConfig.TMDBProxy
+		// 支持自建反代（如 Cloudflare Workers），默认官方源
 		s.baseURL = "https://api.themoviedb.org/3"
+		if v := config.AppConfig.TMDBBaseURL; v != "" {
+			s.baseURL = v
+		}
 	}
 	// HTTP 客户端：超时 8 秒，可选代理
 	s.client = &http.Client{Timeout: 8 * time.Second}
@@ -127,29 +131,36 @@ func (s *TMDBService) callTMDBSearch(query string) []string {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
+		fmt.Printf("[TMDB] 构造请求失败: %v\n", err)
 		return nil
 	}
 	req.Header.Set("Accept", "application/json")
 
 	resp, err := s.client.Do(req)
 	if err != nil {
+		fmt.Printf("[TMDB] 请求失败(query=%s): %v\n", query, err)
 		return nil
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("[TMDB] 状态码异常(query=%s): %d\n", query, resp.StatusCode)
 		return nil
 	}
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
+		fmt.Printf("[TMDB] 读取响应失败: %v\n", err)
 		return nil
 	}
 
 	var result tmdbSearchResponse
 	if err := json.Unmarshal(body, &result); err != nil {
+		fmt.Printf("[TMDB] 解析JSON失败: %v\n", err)
 		return nil
 	}
+
+	fmt.Printf("[TMDB] 查询=%s 命中=%d 条\n", query, result.TotalResults)
 
 	// 提取名称：优先 movie/tv，跳过 person
 	names := make([]string, 0, len(result.Results))
