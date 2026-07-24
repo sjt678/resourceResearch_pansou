@@ -29,7 +29,11 @@ services:
       - ASYNC_MAX_BACKGROUND_WORKERS=20
       - ASYNC_MAX_BACKGROUND_TASKS=100
       - ASYNC_CACHE_TTL_HOURS=1
-      - CHECK_CONCURRENCY=8
+      - CHECK_CONCURRENCY=3
+      - CHECK_TOTAL_TIMEOUT=25
+      # TMDB 搜索建议配置
+      - TMDB_API_KEY=13bf320bec60b9a3c2ec2bbf92efa85c
+      - TMDB_BASE_URL=https://tmdb-proxy.songjt90.workers.dev/3
       # 认证配置（可选）
       # - AUTH_ENABLED=true
       # - AUTH_USERS=admin:admin123,user:pass456
