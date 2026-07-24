@@ -115,7 +115,6 @@ import (
 	_ "pansou/plugin/panzun"
 	_ "pansou/plugin/quarktv"
     _ "pansou/plugin/yunso"
-	_ "pansou/plugin/mipan"
 )
 
 // 全局缓存写入管理器
