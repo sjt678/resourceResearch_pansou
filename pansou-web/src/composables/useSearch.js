@@ -2,8 +2,19 @@ import { ref, shallowRef } from 'vue'
 import { search as searchApi, flattenResults } from '@/api/search.js'
 import { checkLinks } from '@/api/check.js'
 
+function defaultSummary(state) {
+  switch (state) {
+    case 'valid': return '链接有效'
+    case 'invalid':
+    case 'expired': return '链接已失效'
+    case 'unsupported': return '当前平台暂不支持检测'
+    case 'error': return '检测异常'
+    default: return '未知'
+  }
+}
+
 /**
- * 搜索逻辑封装：loading / error / 结果 / 取消请求 / 自动批量检测链接
+ * 搜索逻辑封装：loading / error / 结果 / 取消请求 / 自动批量检测链接 / 手动再检测
  */
 export function useSearch() {
   const loading = ref(false)
@@ -17,15 +28,76 @@ export function useSearch() {
   const flatResults = ref([])
   const total = ref(0)
 
-  // 链接检测结果数组，与 flatResults 一一对应
-  // 每项：{ state: string, summary: string }
-  // state: null(未检测) / 'checking' / 'valid' / 'invalid' / 'expired' / 'error' / 'unsupported'
-  const checkResults = ref([])
+  // 链接检测状态数组，与 flatResults 一一对应
+  // 每项：null(未检测) / 'checking' / 'valid' / 'invalid' / 'expired' / 'error' / 'unsupported'
+  const checkStates = ref([])
+  // 链接检测提示文本，与 flatResults 一一对应
+  const checkSummaries = ref([])
   const checking = ref(false)
 
   let controller = null
-  // 每次 run 自增序号，用于识别过期请求
+  // 每次 run/batchCheck 自增序号，用于识别过期请求
   let seq = 0
+
+  function setCheckItem(i, item) {
+    if (i < 0) return
+    const s = checkStates.value
+    const m = checkSummaries.value
+    while (s.length < i + 1) s.push(null)
+    while (m.length < i + 1) m.push('')
+    s[i] = item.state
+    m[i] = item.summary
+    // 触发响应式更新
+    checkStates.value = [...s]
+    checkSummaries.value = [...m]
+  }
+
+  async function doCheck(indices, signal) {
+    if (!indices?.length) return
+    const targets = indices.filter(i => i >= 0 && i < flatResults.value.length)
+    if (!targets.length) return
+
+    const mySeq = seq
+    // 先把这几个标为 checking
+    targets.forEach(i => setCheckItem(i, { state: 'checking', summary: '正在检测...' }))
+    checking.value = true
+
+    try {
+      const data = await checkLinks(
+        targets.map(i => {
+          const it = flatResults.value[i]
+          return {
+            disk_type: it.cloudType,
+            url: it.url,
+            password: it.password || ''
+          }
+        }),
+        signal
+      )
+      if (mySeq !== seq) return
+      const arr = data?.results || []
+      targets.forEach((i, k) => {
+        const r = arr[k]
+        if (!r) {
+          setCheckItem(i, { state: 'error', summary: '检测失败' })
+          return
+        }
+        setCheckItem(i, {
+          state: r.state || 'error',
+          summary: r.summary || defaultSummary(r.state)
+        })
+      })
+    } catch (e) {
+      if (mySeq !== seq) return
+      if (e.name !== 'CanceledError' && e.code !== 'ERR_CANCELED') {
+        targets.forEach(i =>
+          setCheckItem(i, { state: 'error', summary: '检测失败' })
+        )
+      }
+    } finally {
+      if (mySeq === seq) checking.value = false
+    }
+  }
 
   async function run(kw, options = {}) {
     const trimmed = (kw || '').trim()
@@ -43,7 +115,8 @@ export function useSearch() {
     flatResults.value = []
     mergedByType.value = {}
     total.value = 0
-    checkResults.value = []
+    checkStates.value = []
+    checkSummaries.value = []
     checking.value = false
 
     const start = performance.now()
@@ -77,54 +150,26 @@ export function useSearch() {
       loading.value = false
     }
 
-    // ===== 自动批量检测所有链接 =====
+    // ===== 搜索完成后自动批量检测所有链接 =====
     if (results.length && mySeq === seq) {
-      checking.value = true
-      // 先全部置为 'checking'，让圆点显示脉冲
-      checkResults.value = results.map(() => ({ state: 'checking', summary: '正在检测...' }))
-
-      try {
-        const data = await checkLinks(
-          results.map(it => ({
-            disk_type: it.cloudType,
-            url: it.url,
-            password: it.password || ''
-          })),
-          controller.signal
-        )
-        if (mySeq !== seq) return
-        const arr = data?.results || []
-        checkResults.value = results.map((_, i) => {
-          const r = arr[i]
-          if (!r) return { state: 'error', summary: '检测失败' }
-          return {
-            state: r.state || 'error',
-            summary: r.summary || defaultSummary(r.state)
-          }
-        })
-      } catch (e) {
-        if (mySeq !== seq) return
-        if (e.name !== 'CanceledError' && e.code !== 'ERR_CANCELED') {
-          // 检测失败：全部标记为 error
-          checkResults.value = results.map(() => ({ state: 'error', summary: '检测失败' }))
-        }
-      } finally {
-        if (mySeq === seq) {
-          checking.value = false
-        }
-      }
+      await doCheck(
+        results.map((_, i) => i),
+        controller.signal
+      )
     }
   }
 
-  function defaultSummary(state) {
-    switch (state) {
-      case 'valid': return '链接有效'
-      case 'invalid':
-      case 'expired': return '链接已失效'
-      case 'unsupported': return '当前平台暂不支持检测'
-      case 'error': return '检测异常'
-      default: return '未知'
-    }
+  /**
+   * 手动重测指定下标的链接（Home.vue 卡片"重测"按钮调用）
+   */
+  async function batchCheck(indices) {
+    if (!indices?.length) return
+    // 取消旧检测任务，避免竞态
+    if (controller) controller.abort()
+    controller = new AbortController()
+    const mySeq = ++seq
+    await doCheck(indices, controller.signal)
+    void mySeq
   }
 
   function cancel() {
@@ -143,7 +188,8 @@ export function useSearch() {
     keyword.value = ''
     mergedByType.value = {}
     flatResults.value = []
-    checkResults.value = []
+    checkStates.value = []
+    checkSummaries.value = []
     total.value = 0
     duration.value = 0
   }
@@ -156,9 +202,11 @@ export function useSearch() {
     mergedByType,
     flatResults,
     total,
-    checkResults,
+    checkStates,
+    checkSummaries,
     checking,
     run,
+    batchCheck,
     cancel,
     reset
   }
