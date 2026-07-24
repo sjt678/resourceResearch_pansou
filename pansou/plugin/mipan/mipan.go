@@ -39,16 +39,15 @@ func NewMipanPlugin() *MipanPlugin {
 
 // Search 执行搜索并返回结果（兼容性方法）
 func (p *MipanPlugin) Search(keyword string, ext map[string]interface{}) ([]model.SearchResult, error) {
-	result, err := p.SearchWithResult(keyword, ext)
-	if err != nil {
-		return nil, err
-	}
-	return result.Results, nil
+	client := &http.Client{Timeout: 15 * time.Second}
+	return p.doSearch(client, keyword, ext)
 }
 
-// SearchWithResult 执行搜索并返回包含IsFinal标记的结果
-func (p *MipanPlugin) SearchWithResult(keyword string, ext map[string]interface{}) (model.PluginSearchResult, error) {
-	return p.AsyncSearchWithResult(keyword, p.doSearch, p.MainCacheKey, ext)
+// AsyncSearch 重写异步搜索方法，直接调用doSearch
+// 不走BaseAsyncPlugin的4秒超时，因为mipan.so搜索数百条结果需要更长时间
+func (p *MipanPlugin) AsyncSearch(keyword string, searchFunc func(*http.Client, string, map[string]interface{}) ([]model.SearchResult, error), mainCacheKey string, ext map[string]interface{}) ([]model.SearchResult, error) {
+	client := &http.Client{Timeout: 15 * time.Second}
+	return p.doSearch(client, keyword, ext)
 }
 
 // doSearch 实际的搜索实现
@@ -59,7 +58,7 @@ func (p *MipanPlugin) doSearch(client *http.Client, keyword string, ext map[stri
 		return nil, fmt.Errorf("[%s] 构造请求失败: %w", Source, err)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
 	req, err := http.NewRequestWithContext(ctx, "POST", SearchURL, bytes.NewReader(bodyBytes))
