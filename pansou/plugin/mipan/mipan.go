@@ -1,12 +1,12 @@
 package mipan
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -52,23 +52,19 @@ func (p *MipanPlugin) AsyncSearch(keyword string, searchFunc func(*http.Client, 
 
 // doSearch 实际的搜索实现
 func (p *MipanPlugin) doSearch(client *http.Client, keyword string, ext map[string]interface{}) ([]model.SearchResult, error) {
-	body := map[string]string{"kw": keyword}
-	bodyBytes, err := json.Marshal(body)
-	if err != nil {
-		return nil, fmt.Errorf("[%s] 构造请求失败: %w", Source, err)
-	}
+	// mipan.so 的搜索接口使用 GET + query 参数；使用 POST/JSON 会返回空结果
+	reqURL := fmt.Sprintf("%s?kw=%s", SearchURL, url.QueryEscape(keyword))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "POST", SearchURL, bytes.NewReader(bodyBytes))
+	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("[%s] 创建请求失败: %w", Source, err)
 	}
 
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("Accept", "application/json, text/plain, */*")
-	req.Header.Set("Content-Type", "application/json; charset=UTF-8")
 	req.Header.Set("Referer", "https://www.mipan.so/")
 	req.Header.Set("Origin", "https://www.mipan.so")
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
@@ -108,11 +104,12 @@ type MipanResponse struct {
 }
 
 type MipanLink struct {
-	URL      string `json:"url"`
-	Password string `json:"password"`
-	Note     string `json:"note"`
-	Datetime string `json:"datetime"`
-	Source   string `json:"source"`
+	URL      string   `json:"url"`
+	Password string   `json:"password"`
+	Note     string   `json:"note"`
+	Datetime string   `json:"datetime"`
+	Source   string   `json:"source"`
+	Images   []string `json:"images"`
 }
 
 func parseMipanResponse(body []byte, keyword string) ([]model.SearchResult, error) {
@@ -175,7 +172,8 @@ func parseMipanResponse(body []byte, keyword string) ([]model.SearchResult, erro
 						Password: link.Password,
 					},
 				},
-				Tags: []string{cloudType},
+				Tags:   []string{cloudType},
+				Images: link.Images,
 			})
 		}
 	}
