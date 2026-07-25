@@ -115,12 +115,7 @@ const emptyType = computed(() => {
   return hasSearched.value ? 'empty' : 'initial'
 })
 
-const heroSubtitle = computed(() => {
-  const parts = []
-  if (configStore.channelsCount > 0) parts.push(`${configStore.channelsCount} 个 TG 频道`)
-  if (configStore.pluginsCount > 0) parts.push(`${configStore.pluginsCount} 个搜索源`)
-  return parts.length ? `聚合 ${parts.join(' · ')}` : '聚合众多 TG 频道与搜索源'
-})
+const heroSubtitle = computed(() => '聚合上百个 TG 频道 · 几十个搜索源')
 
 function doSearch(kw) {
   if (!kw) return
