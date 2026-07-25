@@ -139,8 +139,9 @@ export function useSearch() {
 
     let results = []
     try {
+      // 每次搜索都强制刷新，不用搜索结果缓存（检测结果仍走独立缓存）
       const data = await searchApi(
-        { kw: trimmed, ...options },
+        { kw: trimmed, refresh: true, ...options },
         controller.signal
       )
       // 过期请求：已经有更新的 run 启动了，丢弃本次结果
