@@ -63,6 +63,7 @@ const dotTitle = computed(() => {
     case 'valid': return summary || '链接有效'
     case 'invalid': return summary || '链接已失效'
     case 'expired': return summary || '链接已失效'
+    case 'locked': return summary || '需要提取码'
     case 'unsupported': return summary || '暂不支持检测'
     case 'error': return summary || '检测异常'
     default: return '待检测'
@@ -186,6 +187,8 @@ const dotTitle = computed(() => {
 .card.state--invalid .card__title,
 .card.state--expired .card__title {
   text-decoration: line-through;
+  text-decoration-color: var(--color-danger);
+  text-decoration-thickness: 2px;
   color: var(--color-text-secondary);
 }
 
@@ -254,8 +257,12 @@ const dotTitle = computed(() => {
   background: #9ca3af;
 }
 
+.card__dot.dot--locked {
+  background: var(--color-warning);
+}
+
 .card__dot.dot--error {
-  background: #f59e0b;
+  background: var(--color-warning);
 }
 
 @keyframes dot-pulse {

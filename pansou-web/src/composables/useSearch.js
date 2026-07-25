@@ -7,9 +7,24 @@ function defaultSummary(state) {
     case 'valid': return '链接有效'
     case 'invalid':
     case 'expired': return '链接已失效'
+    case 'locked': return '需要提取码'
     case 'unsupported': return '当前平台暂不支持检测'
     case 'error': return '检测异常'
     default: return '未知'
+  }
+}
+
+// 后端状态值 → 前端状态值映射
+// 后端返回: ok / bad / locked / unsupported / uncertain
+// 前端期望: valid / invalid / locked / unsupported / error
+function mapBackendState(backendState) {
+  switch (backendState) {
+    case 'ok': return 'valid'
+    case 'bad': return 'invalid'
+    case 'locked': return 'locked'
+    case 'unsupported': return 'unsupported'
+    case 'uncertain': return 'error'
+    default: return backendState
   }
 }
 
@@ -82,9 +97,10 @@ export function useSearch() {
           setCheckItem(i, { state: 'error', summary: '检测失败' })
           return
         }
+        const mappedState = mapBackendState(r.state)
         setCheckItem(i, {
-          state: r.state || 'error',
-          summary: r.summary || defaultSummary(r.state)
+          state: mappedState,
+          summary: r.summary || defaultSummary(mappedState)
         })
       })
     } catch (e) {
@@ -150,13 +166,8 @@ export function useSearch() {
       loading.value = false
     }
 
-    // ===== 搜索完成后自动批量检测所有链接 =====
-    if (results.length && mySeq === seq) {
-      await doCheck(
-        results.map((_, i) => i),
-        controller.signal
-      )
-    }
+    // 不在这里做全量检测！由 Home.vue 的 scheduleVisibleCheck 懒检测当前页可见项
+    // 全量检测378条会导致后端压力过大且前端等待时间长
   }
 
   /**
