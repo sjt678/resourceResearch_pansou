@@ -55,24 +55,28 @@ const keptList = computed(() =>
     .filter(({ origIdx }) => checkStates.value[origIdx] !== 'invalid')
 )
 
-// 检测统计：总数 / 已检测 / 有效(保留) / 无效(剔除)
+// 检测统计：总数 / 已检测 / 有效 / 无效 / 待定
+// valid 只算真正 valid 的，不再用 total - invalid（会把 uncertain/unsupported/未检测都算进去）
 const checkStats = computed(() => {
   const states = checkStates.value
   const total = flatResults.value.length
   let checked = 0
   let invalid = 0
+  let valid = 0
   for (let i = 0; i < total; i++) {
     const s = states[i]
     if (s && s !== 'checking') {
       checked++
       if (s === 'invalid') invalid++
+      else if (s === 'valid') valid++
     }
   }
   return {
     total,
     checked,
     invalid,
-    valid: total - invalid,
+    valid,
+    pending: total - valid - invalid,
     done: total > 0 && checked >= total
   }
 })
@@ -351,6 +355,7 @@ watch(
             总共 <strong>{{ checkStats.total }}</strong> 条数据，
             <strong class="count-valid">{{ checkStats.valid }}</strong> 条有效，
             <strong class="count-invalid">{{ checkStats.invalid }}</strong> 条无效
+            <span v-if="checkStats.pending > 0" class="count-pending">，{{ checkStats.pending }} 条待定</span>
             <span v-if="!checkStats.done && checkStats.total > 0" class="count-progress">
               （检测中 {{ checkStats.checked }}/{{ checkStats.total }}）
             </span>
@@ -701,6 +706,10 @@ watch(
 
 .result-meta__count .count-invalid {
   color: #dc2626;
+}
+
+.result-meta__count .count-pending {
+  color: var(--color-text-secondary);
 }
 
 .count-progress {
