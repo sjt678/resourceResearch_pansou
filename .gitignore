@@ -25,3 +25,10 @@ mihomo-config/
 
 # 本地测试脚本
 test_apis.sh
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
