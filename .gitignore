@@ -19,3 +19,9 @@ pansou-web/node_modules/
 
 # 日志
 *.log
+
+# mihomo 订阅配置（含节点凭据，严禁提交）
+mihomo-config/
+
+# 本地测试脚本
+test_apis.sh

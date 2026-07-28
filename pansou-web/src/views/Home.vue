@@ -46,9 +46,50 @@ const activeTab = ref('all')
 const pageSize = 20
 const currentPage = ref(1)
 
+// ==================== 无效链接剔除 + 检测统计 ====================
+// 剔除规则：仅剔除"确定失效"（invalid）的链接；
+// "需提取码/暂不可知/不支持检测"等保留展示（国内网盘反爬严，无法判定 ≠ 失效，全剔会误杀大量可用资源）
+const keptList = computed(() =>
+  flatResults.value
+    .map((item, origIdx) => ({ item, origIdx }))
+    .filter(({ origIdx }) => checkStates.value[origIdx] !== 'invalid')
+)
+
+// 检测统计：总数 / 已检测 / 有效(保留) / 无效(剔除)
+const checkStats = computed(() => {
+  const states = checkStates.value
+  const total = flatResults.value.length
+  let checked = 0
+  let invalid = 0
+  for (let i = 0; i < total; i++) {
+    const s = states[i]
+    if (s && s !== 'checking') {
+      checked++
+      if (s === 'invalid') invalid++
+    }
+  }
+  return {
+    total,
+    checked,
+    invalid,
+    valid: total - invalid,
+    done: total > 0 && checked >= total
+  }
+})
+
+// 剔除无效后按网盘类型重新分组（供 Tab 计数使用，保证 Tab 数字与展示一致）
+const keptMergedByType = computed(() => {
+  const grouped = {}
+  for (const { item } of keptList.value) {
+    if (!grouped[item.cloudType]) grouped[item.cloudType] = []
+    grouped[item.cloudType].push(item)
+  }
+  return grouped
+})
+
 // 过滤后的原始列表（保持索引映射）
 const filteredList = computed(() => {
-  let list = flatResults.value.map((item, origIdx) => ({ item, origIdx }))
+  let list = keptList.value
   if (activeTab.value !== 'all') {
     list = list.filter(({ item }) => item.cloudType === activeTab.value)
   }
@@ -94,15 +135,20 @@ const pageNumbers = computed(() => {
   return pages
 })
 
-// 过滤后的总数
+// 过滤后的总数（基于剔除无效后的数据）
 const filteredTotal = computed(() => {
-  if (activeTab.value === 'all') return total.value
-  return (mergedByType.value[activeTab.value] || []).length
+  if (activeTab.value === 'all') return keptList.value.length
+  return (keptMergedByType.value[activeTab.value] || []).length
 })
 
 // 切换排序或 Tab 时重置到第1页
 watch([sortMode, activeTab], () => {
   currentPage.value = 1
+})
+
+// 检测过程中无效项被逐步剔除，总页数可能缩小，当前页越界时自动回退
+watch(totalPages, (tp) => {
+  if (currentPage.value > tp) currentPage.value = tp
 })
 
 // ==================== 搜索 ====================
@@ -184,23 +230,10 @@ function fallbackCopyQQ() {
   ElMessage.success('QQ号已复制到剪贴板')
 }
 
-// ==================== 当前页可见项分批检测 ====================
-let checkTimer = null
-function scheduleVisibleCheck() {
-  clearTimeout(checkTimer)
-  checkTimer = setTimeout(() => {
-    const indices = visibleItems.value
-      .filter(v => v.state == null)
-      .map(v => v.origIdx)
-    if (indices.length) batchCheck(indices)
-  }, 250)
-}
-
-watch(
-  [flatResults, activeTab, sortMode, currentPage],
-  () => { scheduleVisibleCheck() },
-  { immediate: true }
-)
+// ==================== 链接检测说明 ====================
+// 2026-07-28 起：搜索完成后由 useSearch.checkAllProgressively 自动"全量分批"检测（每批25条串行），
+// 不再做"仅当前页懒检测"（旧逻辑的 batchCheck 会 abort 全量检测循环，两者互斥）。
+// 检测结果实时反映到 keptList/checkStats：invalid 项被剔除，统计条同步更新。
 
 // ==================== 初始化 ====================
 onMounted(async () => {
@@ -217,7 +250,6 @@ onMounted(async () => {
   }
 })
 onUnmounted(() => {
-  clearTimeout(checkTimer)
   cancel()
 })
 watch(
@@ -316,7 +348,12 @@ watch(
         <!-- 结果统计 + 排序 + 用时 -->
         <div class="result-meta">
           <span class="result-meta__count">
-            找到 <strong>{{ filteredTotal }}</strong> 条结果
+            总共 <strong>{{ checkStats.total }}</strong> 条数据，
+            <strong class="count-valid">{{ checkStats.valid }}</strong> 条有效，
+            <strong class="count-invalid">{{ checkStats.invalid }}</strong> 条无效
+            <span v-if="!checkStats.done && checkStats.total > 0" class="count-progress">
+              （检测中 {{ checkStats.checked }}/{{ checkStats.total }}）
+            </span>
           </span>
 
           <!-- 排序切换 -->
@@ -344,12 +381,12 @@ watch(
         <div v-if="loading" class="result-loading">
           <span class="result-loading__dot" /> 更新中...
         </div>
-        <div v-else-if="checking" class="result-loading">
-          <span class="result-loading__dot" /> 正在检测链接有效性...
+        <div v-else-if="!checkStats.done && checkStats.total > 0" class="result-loading">
+          <span class="result-loading__dot" /> 正在检测链接有效性，无效链接将自动剔除...
         </div>
 
-        <!-- 网盘类型 Tab -->
-        <ResultTabs v-model="activeTab" :merged-by-type="mergedByType" />
+        <!-- 网盘类型 Tab（计数基于剔除无效后的数据） -->
+        <ResultTabs v-model="activeTab" :merged-by-type="keptMergedByType" />
 
         <!-- 卡片网格：固定3列 -->
         <div class="result-grid">
@@ -656,6 +693,19 @@ watch(
   color: var(--color-text);
   font-size: 16px;
   margin: 0 2px;
+}
+
+.result-meta__count .count-valid {
+  color: #16a34a;
+}
+
+.result-meta__count .count-invalid {
+  color: #dc2626;
+}
+
+.count-progress {
+  font-size: 12px;
+  color: var(--color-primary);
 }
 
 .result-meta__time {
