@@ -28,17 +28,17 @@ services:
       # - AUTH_USERS=admin:admin123,user:pass456
       # - AUTH_TOKEN_EXPIRY=24
       # - AUTH_JWT_SECRET=your-secret-key-here
-      # 如果需要代理，取消下面的注释并设置代理地址
-      # - PROXY=socks5://proxy:7897
       # TMDB 搜索建议配置（输入框联想）
       - TMDB_API_KEY=13bf320bec60b9a3c2ec2bbf92efa85c
       - TMDB_BASE_URL=https://tmdb-proxy.songjt90.workers.dev/3
-      # 国内访问 TMDB 慢时可配置代理（留空直连）
-      # - TMDB_PROXY=socks5://proxy:7897
-      # TG 搜索反代（国内服务器被墙时配置，绕过 t.me 访问限制）
-      - TG_BASE_URL=https://data-source.songjt90.workers.dev
+      # 走 mihomo 代理直接访问 t.me（不再需要 CF Worker 反代）
+      - PROXY=socks5://host.docker.internal:7890
+      # TG 搜索反代（已改用代理，注释掉）
+      # - TG_BASE_URL=https://data-source.songjt90.workers.dev
     volumes:
       - pansou-cache:/app/cache
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - pansou-network
     healthcheck:
