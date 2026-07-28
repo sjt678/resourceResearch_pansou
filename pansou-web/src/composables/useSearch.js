@@ -9,6 +9,7 @@ function defaultSummary(state) {
     case 'expired': return '链接已失效'
     case 'locked': return '需要提取码'
     case 'unsupported': return '当前平台暂不支持检测'
+    case 'uncertain': return '暂不可知'
     case 'error': return '检测异常'
     default: return '未知'
   }
@@ -16,15 +17,15 @@ function defaultSummary(state) {
 
 // 后端状态值 → 前端状态值映射
 // 后端返回: ok / bad / locked / unsupported / uncertain
-// 前端期望: valid / invalid / locked / unsupported / error
+// 前端期望: valid / invalid / locked / unsupported / uncertain / error
 function mapBackendState(backendState) {
   switch (backendState) {
     case 'ok': return 'valid'
     case 'bad': return 'invalid'
     case 'locked': return 'locked'
     case 'unsupported': return 'unsupported'
-    case 'uncertain': return 'error'
-    default: return backendState
+    case 'uncertain': return 'uncertain'  // 独立状态：暂不可知（后端无法判定）
+    default: return 'error'
   }
 }
 
@@ -162,6 +163,11 @@ export function useSearch() {
       mergedByType.value = data?.merged_by_type || {}
       total.value = data?.total || 0
       results = flattenResults(mergedByType.value)
+      // 给结果打上数据源标签，方便用户识别结果来源
+      const sourceTag = source.value === 'aggregate' ? '聚合' 
+                      : source.value === 'tg' ? 'TG频道' 
+                      : '插件'
+      results = results.map(r => ({ ...r, _source: sourceTag }))
       flatResults.value = results
       duration.value = Math.round(performance.now() - start)
     } catch (e) {

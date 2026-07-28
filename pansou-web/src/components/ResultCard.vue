@@ -79,6 +79,10 @@ const dotTitle = computed(() => {
     <header class="card__head">
       <span class="card__cloud" :style="{ background: cloud.color }">{{ cloud.icon }}</span>
       <h3 class="card__title" v-html="highlight(note, keyword)" />
+      <!-- 数据源标签 -->
+      <span v-if="item._source" class="card__source-tag" :class="`tag--${item._source}`">
+        {{ item._source }}
+      </span>
       <!-- 状态圆点 -->
       <span
         class="card__dot"
@@ -221,6 +225,7 @@ const dotTitle = computed(() => {
   word-break: break-word;
   flex: 1;
   min-width: 0;
+  padding-right: 4px;
 }
 
 /* 状态圆点 */
@@ -263,6 +268,33 @@ const dotTitle = computed(() => {
 
 .card__dot.dot--error {
   background: var(--color-warning);
+}
+
+.card__dot.dot--uncertain {
+  background: #9ca3af;  /* 灰色：暂不可知（后端无法判定） */
+}
+
+/* 数据源标签 */
+.card__source-tag {
+  flex-shrink: 0;
+  font-size: 11px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  white-space: nowrap;
+  margin-top: 4px;
+}
+.card__source-tag.tag--聚合 {
+  background: rgba(99, 102, 241, 0.12);
+  color: #6366f1;
+}
+.card__source-tag.tag--TG频道 {
+  background: rgba(34, 197, 94, 0.12);
+  color: #16a34a;
+}
+.card__source-tag.tag--插件 {
+  background: rgba(245, 158, 11, 0.12);
+  color: #d97706;
 }
 
 @keyframes dot-pulse {
