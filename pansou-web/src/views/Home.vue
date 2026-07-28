@@ -276,12 +276,21 @@ watch(
             </button>
             <button
               class="source-btn"
-              :class="{ active: source === 'deep' }"
-              @click="switchSource('deep')"
+              :class="{ active: source === 'tg' }"
+              @click="switchSource('tg')"
+            >
+              <span class="source-btn__icon">📡</span>
+              <span class="source-btn__text">频道搜索</span>
+              <span class="source-btn__desc">118个TG频道</span>
+            </button>
+            <button
+              class="source-btn"
+              :class="{ active: source === 'plugin' }"
+              @click="switchSource('plugin')"
             >
               <span class="source-btn__icon">🔍</span>
-              <span class="source-btn__text">深度搜索</span>
-              <span class="source-btn__desc">全网 · TG频道+插件</span>
+              <span class="source-btn__text">插件搜索</span>
+              <span class="source-btn__desc">60个插件全网搜</span>
             </button>
           </div>
           <SearchBar v-model="keyword" :loading="loading" @search="doSearch" />
@@ -582,8 +591,8 @@ watch(
 .source-btn {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
+  gap: 6px;
+  padding: 8px 16px;
   border: 1.5px solid var(--color-border);
   border-radius: var(--radius-lg);
   background: var(--color-card);

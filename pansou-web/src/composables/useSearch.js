@@ -35,7 +35,7 @@ export function useSearch() {
   const loading = ref(false)
   const error = ref(null)
   const keyword = ref('')
-  // 数据源：'aggregate'(聚合搜索-mipan) | 'deep'(深度搜索-全部+TG)
+  // 数据源：'aggregate'(聚合-mipan) | 'tg'(TG频道) | 'plugin'(其余插件)
   const source = ref('aggregate')
   // 搜索耗时（毫秒），用于结果区展示
   const duration = ref(0)
@@ -147,9 +147,13 @@ export function useSearch() {
         // 聚合搜索：只用mipan插件
         searchParams.src = 'plugin'
         searchParams.plugins = ['mipan']
+      } else if (source.value === 'tg') {
+        // 频道搜索：只搜TG频道
+        searchParams.src = 'tg'
       } else {
-        // 深度搜索：全部插件 + TG频道
-        searchParams.src = 'all'
+        // 插件搜索：全部插件（不含mipan）
+        searchParams.src = 'plugin'
+        searchParams.plugins = ['labi','zhizhen','shandian','duoduo','muou','wanou','hunhepan','jikepan','panwiki','pansearch','panta','qupansou','hdr4k','pan666','susu','thepiratebay','xuexizhinan','panyq','ouge','huban','cyg','erxiao','miaoso','fox4k','pianku','clmao','wuji','cldi','xiaozhang','libvio','leijing','xb6v','xys','ddys','hdmoli','yuhuage','u3c3','javdb','clxiong','jutoushe','sdso','xiaoji','xdyh','haisou','bixin','djgou','nyaa','xinjuc','aikanzy','qupanshe','xdpan','discourse','yunsou','qqpd','ahhhhfs','nsgame','gying','quark4k','quarksoo','sousou','ash']
       }
       const data = await searchApi(searchParams, controller.signal)
       // 过期请求：已经有更新的 run 启动了，丢弃本次结果
