@@ -185,31 +185,11 @@ export function useSearch() {
     if (mySeq === seq) {
       loading.value = false
     }
-
-    // 搜索完成后自动"全量分批"检测所有链接（每批 25 条、串行执行，避免压垮后端）。
-    // Home.vue 依据 checkStates 实时剔除 invalid 项并展示"总共/有效/无效"统计。
-    // 后端对检测结果有 24h/6h 两级缓存，重复搜索同关键词时检测非常快。
-    void checkAllProgressively(controller.signal, mySeq)
+    // 懒检测：搜索完成后不自动检测，由 Home.vue 在翻页时检测当前页可见项
   }
 
   /**
-   * 全量分批检测：从头到尾按块串行检测所有结果。
-   * 新搜索/手动重测会使 seq 前进，本轮循环自动终止。
-   */
-  async function checkAllProgressively(signal, mySeq) {
-    const n = flatResults.value.length
-    if (!n) return
-    const CHUNK = 25
-    for (let start = 0; start < n; start += CHUNK) {
-      if (mySeq !== seq) return
-      const chunk = []
-      for (let i = start; i < Math.min(start + CHUNK, n); i++) chunk.push(i)
-      await doCheck(chunk, signal)
-    }
-  }
-
-  /**
-   * 手动重测指定下标的链接（Home.vue 卡片"重测"按钮调用）
+   * 检测指定下标的链接（Home.vue 翻页时调用，只检测当前页）
    */
   async function batchCheck(indices) {
     if (!indices?.length) return

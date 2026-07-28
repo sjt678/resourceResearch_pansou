@@ -55,29 +55,22 @@ const keptList = computed(() =>
     .filter(({ origIdx }) => checkStates.value[origIdx] !== 'invalid')
 )
 
-// 检测统计：总数 / 已检测 / 有效 / 无效 / 待定
-// valid 只算真正 valid 的，不再用 total - invalid（会把 uncertain/unsupported/未检测都算进去）
-const checkStats = computed(() => {
-  const states = checkStates.value
-  const total = flatResults.value.length
-  let checked = 0
-  let invalid = 0
+// 当前页检测统计（懒检测：只统计当前可见页的检测状态）
+const pageCheckStats = computed(() => {
+  const items = visibleItems.value
+  const total = items.length
   let valid = 0
-  for (let i = 0; i < total; i++) {
-    const s = states[i]
-    if (s && s !== 'checking') {
-      checked++
-      if (s === 'invalid') invalid++
-      else if (s === 'valid') valid++
-    }
+  let invalid = 0
+  for (const { origIdx } of items) {
+    const s = checkStates.value[origIdx]
+    if (s === 'valid') valid++
+    else if (s === 'invalid') invalid++
   }
   return {
     total,
-    checked,
-    invalid,
     valid,
-    pending: total - valid - invalid,
-    done: total > 0 && checked >= total
+    invalid,
+    pending: total - valid - invalid
   }
 })
 
@@ -235,9 +228,23 @@ function fallbackCopyQQ() {
 }
 
 // ==================== 链接检测说明 ====================
-// 2026-07-28 起：搜索完成后由 useSearch.checkAllProgressively 自动"全量分批"检测（每批25条串行），
-// 不再做"仅当前页懒检测"（旧逻辑的 batchCheck 会 abort 全量检测循环，两者互斥）。
-// 检测结果实时反映到 keptList/checkStats：invalid 项被剔除，统计条同步更新。
+// 懒检测：翻页时只检测当前页可见的链接（20条），不全量检测。
+// 当前页 invalid 被剔除后，下一页数据会自动补入当前页，触发新数据检测，最终稳定。
+// 后端对检测结果有 24h/6h 两级缓存，重复检测非常快。
+
+// 翻页/搜索完成/剔除invalid后补入新数据 → 自动检测当前页未检测的链接
+watch(visibleItems, (items) => {
+  if (!items.length) return
+  const unchecked = items
+    .map(({ origIdx }) => origIdx)
+    .filter(idx => {
+      const s = checkStates.value[idx]
+      return !s  // null/undefined = 未检测
+    })
+  if (unchecked.length) {
+    batchCheck(unchecked)
+  }
+}, { immediate: true })
 
 // ==================== 初始化 ====================
 onMounted(async () => {
@@ -352,12 +359,12 @@ watch(
         <!-- 结果统计 + 排序 + 用时 -->
         <div class="result-meta">
           <span class="result-meta__count">
-            总共 <strong>{{ checkStats.total }}</strong> 条数据，
-            <strong class="count-valid">{{ checkStats.valid }}</strong> 条有效，
-            <strong class="count-invalid">{{ checkStats.invalid }}</strong> 条无效
-            <span v-if="checkStats.pending > 0" class="count-pending">，{{ checkStats.pending }} 条待定</span>
-            <span v-if="!checkStats.done && checkStats.total > 0" class="count-progress">
-              （检测中 {{ checkStats.checked }}/{{ checkStats.total }}）
+            总共 <strong>{{ filteredTotal }}</strong> 条结果
+            <span v-if="pageCheckStats.total > 0" class="count-page-detail">
+              ｜ 当前页 <strong>{{ pageCheckStats.total }}</strong> 条，
+              <strong class="count-valid">{{ pageCheckStats.valid }}</strong> 有效，
+              <strong class="count-invalid">{{ pageCheckStats.invalid }}</strong> 无效，
+              <strong class="count-pending">{{ pageCheckStats.pending }}</strong> 待定
             </span>
           </span>
 
@@ -386,8 +393,8 @@ watch(
         <div v-if="loading" class="result-loading">
           <span class="result-loading__dot" /> 更新中...
         </div>
-        <div v-else-if="!checkStats.done && checkStats.total > 0" class="result-loading">
-          <span class="result-loading__dot" /> 正在检测链接有效性，无效链接将自动剔除...
+        <div v-else-if="checking && pageCheckStats.pending > 0" class="result-loading">
+          <span class="result-loading__dot" /> 正在检测当前页链接...
         </div>
 
         <!-- 网盘类型 Tab（计数基于剔除无效后的数据） -->
@@ -709,6 +716,11 @@ watch(
 }
 
 .result-meta__count .count-pending {
+  color: var(--color-text-secondary);
+}
+
+.count-page-detail {
+  font-size: 13px;
   color: var(--color-text-secondary);
 }
 
