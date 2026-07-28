@@ -161,7 +161,8 @@ func parseMipanResponse(body []byte, keyword string) ([]model.SearchResult, erro
 			results = append(results, model.SearchResult{
 				MessageID: messageID,
 				UniqueID:  uniqueID,
-				Channel:   "mipan",
+				// 不要设置 Channel 字段：后端会据此把来源拼成 "tg:mipan"，
+				// 留空则按 UniqueID 正确识别为 "plugin:mipan"
 				Datetime:  dt,
 				Title:     title,
 				Content:   fmt.Sprintf("关键词: %s | 类型: %s", keyword, cloudType),

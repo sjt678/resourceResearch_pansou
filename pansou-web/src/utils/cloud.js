@@ -12,7 +12,10 @@ export const CLOUD_META = {
   tianyi: { label: '天翼', color: '#0ea5e9', icon: '天' },
   123: { label: '123', color: '#10b981', icon: '123' },
   pikpak: { label: 'PikPak', color: '#8b5cf6', icon: 'P' },
+  guangya: { label: '光雅', color: '#f43f5e', icon: '光' },
+  mobile: { label: '移动', color: '#0ea5e9', icon: '移' },
   magnet: { label: '磁力', color: '#ef4444', icon: '磁' },
+  ed2k: { label: '电驴', color: '#a855f7', icon: '驴' },
   others: { label: '其他', color: '#64748b', icon: '链' }
 }
 
@@ -27,7 +30,7 @@ export function getCloudMeta(cloudType) {
 // 排序权重：已知类型优先，其余按名称
 const ORDER = [
   'quark', 'baidu', 'aliyun', 'aliyundrive', '115', 'uc', 'weiyun',
-  'xunlei', 'tianyi', '123', 'pikpak', 'magnet', 'others'
+  'xunlei', 'tianyi', '123', 'pikpak', 'guangya', 'mobile', 'magnet', 'ed2k', 'others'
 ]
 
 export function sortCloudTypes(types) {
