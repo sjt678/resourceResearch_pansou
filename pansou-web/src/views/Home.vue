@@ -20,6 +20,7 @@ const {
   loading,
   error,
   keyword,
+  source,
   duration,
   mergedByType,
   flatResults,
@@ -125,6 +126,15 @@ function doSearch(kw) {
   addHistory(kw)
   router.replace({ query: { ...route.query, q: kw } })
   run(kw)
+}
+
+// 切换数据源后自动重新搜索
+function switchSource(s) {
+  if (source.value === s) return
+  source.value = s
+  if (keyword.value) {
+    doSearch(keyword.value)
+  }
 }
 
 function goPage(page) {
@@ -253,6 +263,27 @@ watch(
         <p v-if="!hasSearched" class="hero__subtitle">{{ heroSubtitle }}</p>
 
         <div class="hero__search">
+          <!-- 数据源切换 -->
+          <div class="source-switch">
+            <button
+              class="source-btn"
+              :class="{ active: source === 'aggregate' }"
+              @click="switchSource('aggregate')"
+            >
+              <span class="source-btn__icon">🚀</span>
+              <span class="source-btn__text">聚合搜索</span>
+              <span class="source-btn__desc">极速 · 多源聚合</span>
+            </button>
+            <button
+              class="source-btn"
+              :class="{ active: source === 'deep' }"
+              @click="switchSource('deep')"
+            >
+              <span class="source-btn__icon">🔍</span>
+              <span class="source-btn__text">深度搜索</span>
+              <span class="source-btn__desc">全网 · TG频道+插件</span>
+            </button>
+          </div>
           <SearchBar v-model="keyword" :loading="loading" @search="doSearch" />
         </div>
       </div>
@@ -540,6 +571,60 @@ watch(
   margin: 0 auto;
 }
 
+/* 数据源切换 */
+.source-switch {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 16px;
+}
+
+.source-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-card);
+  cursor: pointer;
+  transition: all var(--transition-normal);
+  position: relative;
+  overflow: hidden;
+}
+
+.source-btn:hover:not(.active) {
+  border-color: var(--color-primary);
+  background: var(--color-primary-light);
+}
+
+.source-btn.active {
+  border-color: var(--color-primary);
+  background: linear-gradient(135deg, var(--color-primary) 0%, #6366f1 100%);
+  color: #fff;
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+}
+
+.source-btn__icon {
+  font-size: 18px;
+  line-height: 1;
+}
+
+.source-btn__text {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.source-btn__desc {
+  font-size: 12px;
+  opacity: 0.7;
+  font-weight: 400;
+}
+
+.source-btn.active .source-btn__desc {
+  opacity: 0.85;
+}
+
 /* 主区域 */
 .main {
   flex: 1;
@@ -811,6 +896,17 @@ watch(
   .hero__subtitle {
     font-size: 14px;
     margin-bottom: 22px;
+  }
+  .source-switch {
+    flex-direction: column;
+    gap: 8px;
+  }
+  .source-btn {
+    justify-content: center;
+    padding: 8px 16px;
+  }
+  .source-btn__desc {
+    display: none;
   }
   .result-grid {
     grid-template-columns: 1fr;

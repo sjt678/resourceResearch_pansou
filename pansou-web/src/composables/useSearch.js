@@ -35,6 +35,8 @@ export function useSearch() {
   const loading = ref(false)
   const error = ref(null)
   const keyword = ref('')
+  // 数据源：'aggregate'(聚合搜索-mipan) | 'deep'(深度搜索-全部+TG)
+  const source = ref('aggregate')
   // 搜索耗时（毫秒），用于结果区展示
   const duration = ref(0)
   // 后端返回的原始分组数据
@@ -139,11 +141,17 @@ export function useSearch() {
 
     let results = []
     try {
-      // 每次搜索都强制刷新，不用搜索结果缓存（检测结果仍走独立缓存）
-      const data = await searchApi(
-        { kw: trimmed, refresh: true, ...options },
-        controller.signal
-      )
+      // 根据数据源构建搜索参数
+      const searchParams = { kw: trimmed, refresh: true, ...options }
+      if (source.value === 'aggregate') {
+        // 聚合搜索：只用mipan插件
+        searchParams.src = 'plugin'
+        searchParams.plugins = ['mipan']
+      } else {
+        // 深度搜索：全部插件 + TG频道
+        searchParams.src = 'all'
+      }
+      const data = await searchApi(searchParams, controller.signal)
       // 过期请求：已经有更新的 run 启动了，丢弃本次结果
       if (mySeq !== seq) return
 
@@ -210,6 +218,7 @@ export function useSearch() {
     loading,
     error,
     keyword,
+    source,
     duration,
     mergedByType,
     flatResults,
