@@ -290,7 +290,7 @@ watch(
             >
               <span class="source-btn__icon">🔍</span>
               <span class="source-btn__text">插件搜索</span>
-              <span class="source-btn__desc">60个插件全网搜</span>
+              <span class="source-btn__desc">11个精选插件</span>
             </button>
           </div>
           <SearchBar v-model="keyword" :loading="loading" @search="doSearch" />

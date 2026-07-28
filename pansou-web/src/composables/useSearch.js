@@ -152,9 +152,10 @@ export function useSearch() {
         // 频道搜索：只搜TG频道
         searchParams.src = 'tg'
       } else {
-        // 插件搜索：全部插件（不含mipan）
+        // 插件搜索：精选可用插件（不含mipan）
+        // 2026-07-28 对 61 个插件实测（关键词"仙逆"），仅以下 11 个有返回，其余 50 个全部 0 条（站点失效/反爬/需代理）
         searchParams.src = 'plugin'
-        searchParams.plugins = ['labi','zhizhen','shandian','duoduo','muou','wanou','hunhepan','jikepan','panwiki','pansearch','panta','qupansou','hdr4k','pan666','susu','thepiratebay','xuexizhinan','panyq','ouge','huban','cyg','erxiao','miaoso','fox4k','pianku','clmao','wuji','cldi','xiaozhang','libvio','leijing','xb6v','xys','ddys','hdmoli','yuhuage','u3c3','javdb','clxiong','jutoushe','sdso','xiaoji','xdyh','haisou','bixin','djgou','nyaa','xinjuc','aikanzy','qupanshe','xdpan','discourse','yunsou','qqpd','ahhhhfs','nsgame','gying','quark4k','quarksoo','sousou','ash']
+        searchParams.plugins = ['duoduo','qupanshe','muou','wanou','ouge','ash','quark4k','hunhepan','xiaozhang','yuhuage','u3c3']
       }
       const data = await searchApi(searchParams, controller.signal)
       // 过期请求：已经有更新的 run 启动了，丢弃本次结果
