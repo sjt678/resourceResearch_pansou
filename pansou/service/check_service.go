@@ -73,7 +73,7 @@ func NewCheckService() *CheckService {
 	service := &CheckService{
 		cache:        make(map[string]cachedCheckResult),
 		inflight:     make(map[string]*activeCheckCall),
-		client:       util.GetHTTPClient(),
+		client:       newCheckHTTPClient(),
 		cacheFile:    filepath.Join(".", "cache", "check_cache.db"),
 		concurrency:  defaultCheckConcurrency,
 		totalTimeout: defaultCheckTotalTimeout,
@@ -93,6 +93,24 @@ func NewCheckService() *CheckService {
 	service.openCacheStore()
 	service.pruneExpiredCacheStore()
 	return service
+}
+
+// newCheckHTTPClient 构建链接检测专用的 HTTP 客户端。
+// 默认使用直连：检测对象是夸克/百度/阿里等国内网盘站点，国内服务器直连最稳定。
+// 不能使用全局客户端（util.GetHTTPClient）：它可能配置了翻墙代理（供 TG 搜索使用），
+// 一旦容器内代理不可达，所有检测会瞬间失败；即使代理可用，经海外节点访问国内网盘
+// 也更容易触发风控。如需走代理，可设置 CHECK_PROXY 环境变量，
+// 或在 /api/check/links 请求中传 proxy_url 逐次指定。
+func newCheckHTTPClient() *http.Client {
+	if checkProxy := strings.TrimSpace(os.Getenv("CHECK_PROXY")); checkProxy != "" {
+		if client, err := util.NewHTTPClient(checkProxy); err == nil {
+			return client
+		}
+	}
+	if client, err := util.NewHTTPClient(""); err == nil {
+		return client
+	}
+	return util.GetHTTPClient()
 }
 
 func (s *CheckService) Check(items []model.CheckItem) model.CheckResponse {

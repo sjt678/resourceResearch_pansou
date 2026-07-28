@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"net/http"
 	"net/url"
@@ -27,7 +28,10 @@ func InitHTTPClient() {
 
 	client, err := NewHTTPClient(proxyURL)
 	if err != nil {
+		log.Printf("[HTTP] 代理客户端初始化失败(%s)，回退直连: %v", proxyURL, err)
 		client, _ = NewHTTPClient("")
+	} else if proxyURL != "" {
+		log.Printf("[HTTP] 全局客户端已配置代理: %s（TG搜索等场景使用）", proxyURL)
 	}
 	httpClient = client
 }

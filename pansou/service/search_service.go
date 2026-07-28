@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
 	"net/url"
 	"regexp"
@@ -1244,6 +1245,8 @@ func (s *SearchService) searchTG(keyword string, channels []string, forceRefresh
 		tasks = append(tasks, func() interface{} {
 			results, err := s.searchChannel(keyword, ch)
 			if err != nil {
+				// 输出失败原因，便于排查代理/网络问题（此前静默吞错，TG 返回 0 条时无法定位）
+				log.Printf("[TG] 频道 %s 搜索失败: %v", ch, err)
 				return nil
 			}
 			return results
