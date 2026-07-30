@@ -9,7 +9,14 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"pansou/config"
+	"pansou/model"
 	"pansou/plugin"
+)
+
+// 探针超时控制（避免单个/整体卡死导致 /api/health/plugins 永远返回 total:0）
+const (
+	probeOneTimeout   = 15 * time.Second  // 单源探测硬超时：超过则标记该源 fail，不阻塞整体
+	probeTotalTimeout = 120 * time.Second // 整体探针安全超时：到点即写入已得结果
 )
 
 // PluginHealth 单个插件健康信息
@@ -77,10 +84,11 @@ func GetHealthChecker() *HealthChecker {
 
 // probeOne 对单个插件执行一次探测，临时隔离主缓存避免污染业务缓存
 func (h *HealthChecker) probeOne(p plugin.AsyncSearchPlugin) PluginHealth {
+	start := time.Now()
 	ph := PluginHealth{
 		Name:        p.Name(),
 		Status:      "fail",
-		LastChecked: time.Now().UnixMilli(),
+		LastChecked: start.UnixMilli(),
 	}
 
 	// 临时清空主缓存键，使本次搜索不写入业务主缓存
@@ -90,27 +98,48 @@ func (h *HealthChecker) probeOne(p plugin.AsyncSearchPlugin) PluginHealth {
 		defer accessor.SetMainCacheKey(save)
 	}
 
-	start := time.Now()
-	results, err := p.Search(h.probeKeyword, map[string]interface{}{
-		"health_probe": true,
-		"refresh":      true,
-	})
-	ph.LatencyMs = time.Since(start).Milliseconds()
+	// 单源硬超时：避免某个源 Search 卡死（如代理节点挂起、连接不释放）
+	// 拖垮整个探针，导致 wg.Wait 永久阻塞、lastRunAt 永不写入。
+	type probeResult struct {
+		results []model.SearchResult
+		err     error
+	}
+	ch := make(chan probeResult, 1)
+	go func() {
+		r, e := p.Search(h.probeKeyword, map[string]interface{}{
+			"health_probe": true,
+			"refresh":      true,
+		})
+		ch <- probeResult{r, e}
+	}()
 
-	if err != nil {
-		ph.Error = err.Error()
-		ph.ResultCount = 0
+	select {
+	case out := <-ch:
+		ph.LatencyMs = time.Since(start).Milliseconds()
+		if out.err != nil {
+			ph.Error = out.err.Error()
+			ph.ResultCount = 0
+			return ph
+		}
+		ph.ResultCount = len(out.results)
+		ph.Status = "ok"
+		return ph
+	case <-time.After(probeOneTimeout):
+		ph.Error = "探测超时(单源超过阈值)"
+		ph.LatencyMs = probeOneTimeout.Milliseconds()
 		return ph
 	}
-
-	ph.ResultCount = len(results)
-	ph.Status = "ok"
-	return ph
 }
 
 // RunProbe 对全部已注册插件执行一次探测（有界并发，避免阻塞过久）
 func (h *HealthChecker) RunProbe() {
 	plugins := plugin.GetRegisteredPlugins()
+
+	// 先打时间戳：避免任何提前返回或整体未完成时，GET 永远看到零值时间(-62135596800000)
+	h.mu.Lock()
+	h.lastRunAt = time.Now()
+	h.mu.Unlock()
+
 	if len(plugins) == 0 {
 		return
 	}
@@ -139,13 +168,24 @@ func (h *HealthChecker) RunProbe() {
 			}
 		}(i, p)
 	}
-	wg.Wait()
+
+	// 整体安全超时：即便个别源未在单源超时内返回（极端情况），也确保探针结束并写入已得结果
+	done := make(chan struct{})
+	go func() { wg.Wait(); close(done) }()
+	select {
+	case <-done:
+	case <-time.After(probeTotalTimeout):
+		fmt.Printf("[Health] 探针整体超过安全阈值(%.0fs)，写入已探测的部分结果\n", probeTotalTimeout.Seconds())
+	}
 
 	// 一次性写入状态表，避免读到半截数据
 	h.mu.Lock()
 	h.statuses = make(map[string]PluginHealth, len(results))
 	available := 0
 	for _, ph := range results {
+		if ph.Name == "" {
+			continue
+		}
 		h.statuses[ph.Name] = ph
 		if ph.Status == "ok" {
 			available++
