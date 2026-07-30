@@ -1,0 +1,78 @@
+classDiagram
+    class AsyncSearchPlugin {
+        <<interface>>
+        +Name() string
+        +Priority() int
+        +Search(keyword string, ext map) ([]SearchResult, error)
+        +SkipServiceFilter() bool
+    }
+
+    class BaseAsyncPlugin {
+        +MainCacheKey string
+        +ProbeSearch(keyword string) ([]SearchResult, error)
+        +Search(keyword, ext) ([]SearchResult, error)
+        +AsyncSearch(...) (...)
+    }
+    BaseAsyncPlugin ..|> AsyncSearchPlugin
+
+    class HealthChecker {
+        -statuses map
+        -mu sync.RWMutex
+        -probeKeyword string
+        +RunProbe()
+        +GetHealth() HealthStatus
+        +StartScheduler(interval)
+    }
+    class PluginHealth {
+        +Name string
+        +Status string
+        +LatencyMs int64
+        +ResultCount int
+        +LastChecked int64
+        +Error string
+    }
+    class HealthStatus {
+        +Total int
+        +Healthy int
+        +Plugins []PluginHealth
+    }
+    HealthChecker o-- PluginHealth
+    HealthStatus o-- PluginHealth
+    HealthChecker ..> AsyncSearchPlugin : probes via ProbeSearch
+
+    class TelegramChannelConfig {
+        +Channel string
+        +CloudType string
+        +KeywordMap []string
+        +Enabled bool
+    }
+    class TelegramAPIConfig {
+        +APIID string
+        +APIHash string
+        +SessionPath string
+    }
+    class TelegramChannelPlugin {
+        +channels []TelegramChannelConfig
+        +client TGClient
+        +Search(keyword, ext) (...)
+    }
+    TelegramChannelPlugin --|> BaseAsyncPlugin
+    TelegramChannelPlugin o-- TelegramChannelConfig
+    TelegramChannelConfig ..> TelegramAPIConfig : uses
+
+    class SearchResult {
+        +UniqueID string
+        +Channel string
+        +Title string
+        +Content string
+        +Links []Link
+        +work_title string
+    }
+    class Link {
+        +Type string
+        +URL string
+        +Password string
+        +WorkTitle string
+    }
+    SearchResult o-- Link
+    TelegramChannelPlugin ..> SearchResult : produces (Channel=handle)

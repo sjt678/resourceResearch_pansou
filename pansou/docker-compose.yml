@@ -33,6 +33,9 @@ services:
       - TMDB_BASE_URL=https://tmdb-proxy.songjt90.workers.dev/3
       # 走 mihomo 代理直接访问 t.me（不再需要 CF Worker 反代）
       - PROXY=socks5://host.docker.internal:7890
+      # 源健康度探针（P0）：调度间隔；0=仅启动自检 + 手动 POST /api/health/plugins/check
+      - HEALTH_CHECK_INTERVAL=30m
+      - HEALTH_PROBE_KEYWORD=测试
       # TG 搜索反代（已改用代理，注释掉）
       # - TG_BASE_URL=https://data-source.songjt90.workers.dev
     volumes:

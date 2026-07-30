@@ -61,6 +61,16 @@ type Config struct {
 
 	// TG 搜索相关配置
 	TGBaseURL string // Telegram 搜索基础 URL（可选，用于自建反代绕墙，默认 https://t.me）
+
+	// 健康探针相关配置
+	HealthCheckInterval time.Duration // 探针调度间隔（0=仅启动自检+手动触发）
+	HealthProbeKeyword  string        // 探针探测用的关键词
+
+	// Telegram 适配器相关配置（凭据走环境变量，不入库）
+	TGAPIID      string // Telegram API ID（my.telegram.org 申请）
+	TGAPIHash    string // Telegram API Hash
+	TGSessionPath string // Telegram 登录 session 文件路径
+	TGConfigPath  string // Telegram 频道配置文件路径（默认 plugin/telegram/config.yaml）
 }
 
 // 全局配置实例
@@ -122,6 +132,16 @@ func Init() {
 
 		// TG 搜索相关配置
 		TGBaseURL: os.Getenv("TG_BASE_URL"),
+
+		// 健康探针相关配置
+		HealthCheckInterval: getHealthCheckInterval(),
+		HealthProbeKeyword:  getHealthProbeKeyword(),
+
+		// Telegram 适配器相关配置
+		TGAPIID:       getTGAPIID(),
+		TGAPIHash:     getTGAPIHash(),
+		TGSessionPath: getTGSessionPath(),
+		TGConfigPath:  getTGConfigPath(),
 	}
 	
 	// 应用GC配置
@@ -599,6 +619,58 @@ func getAuthJWTSecret() string {
 		secret = "pansou-default-secret-" + strconv.FormatInt(time.Now().Unix(), 10)
 	}
 	return secret
+}
+
+// 从环境变量获取健康探针调度间隔，如果未设置则默认 30 分钟
+// 取值支持 "0"（仅启动自检+手动触发）、"30m"/"1h" 等 duration 字符串，或纯数字（按分钟解析）
+func getHealthCheckInterval() time.Duration {
+	v := os.Getenv("HEALTH_CHECK_INTERVAL")
+	if v == "" {
+		return 30 * time.Minute
+	}
+	if v == "0" {
+		return 0
+	}
+	// 优先按 duration 解析（支持 30m/1h 等）
+	if d, err := time.ParseDuration(v); err == nil {
+		return d
+	}
+	// 退化为按分钟解析
+	if n, err := strconv.Atoi(v); err == nil && n > 0 {
+		return time.Duration(n) * time.Minute
+	}
+	return 30 * time.Minute
+}
+
+// 从环境变量获取健康探针探测关键词，如果未设置则默认 "测试"
+func getHealthProbeKeyword() string {
+	if v := os.Getenv("HEALTH_CHECK_PROBE_KEYWORD"); v != "" {
+		return v
+	}
+	return "测试"
+}
+
+// 从环境变量获取 Telegram API ID
+func getTGAPIID() string {
+	return os.Getenv("TG_API_ID")
+}
+
+// 从环境变量获取 Telegram API Hash
+func getTGAPIHash() string {
+	return os.Getenv("TG_API_HASH")
+}
+
+// 从环境变量获取 Telegram session 文件路径
+func getTGSessionPath() string {
+	return os.Getenv("TG_SESSION_PATH")
+}
+
+// 从环境变量获取 Telegram 频道配置文件路径，缺省为插件内置路径
+func getTGConfigPath() string {
+	if v := os.Getenv("TG_CONFIG_PATH"); v != "" {
+		return v
+	}
+	return "plugin/telegram/config.yaml"
 }
 
 // 应用GC设置

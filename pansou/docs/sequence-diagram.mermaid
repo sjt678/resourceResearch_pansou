@@ -1,0 +1,46 @@
+sequenceDiagram
+    participant SCH as 定时/启动 goroutine
+    participant HC as HealthChecker
+    participant REG as plugin.GetRegisteredPlugins()
+    participant P as AsyncSearchPlugin 实例
+    participant MEM as 内存 statuses
+
+    SCH->>HC: StartScheduler(interval) / 启动自检
+    HC->>REG: GetRegisteredPlugins()
+    loop 每个插件 p
+        HC->>P: ProbeSearch(probeKeyword)
+        Note over P: 临时清空 MainCacheKey，避免写主缓存；<br/>用短超时客户端执行一次 Search
+        P-->>HC: (results, err) + 测量 latency
+        HC->>MEM: 写入 PluginHealth{status,latency,resultCount,lastChecked,error}
+    end
+    HC-->>SCH: 打印 OK/FAIL+latency，末尾 可用源数/总数 摘要
+
+    participant GET as GET /api/health/plugins
+    GET->>HC: GetHealth()
+    HC-->>GET: HealthStatus{total,healthy,plugins[]}
+    GET-->>Client: JSON
+
+    participant POST as POST /api/health/plugins/check
+    POST->>HC: RunProbe(force=true)
+    POST-->>Client: HealthStatus
+
+---
+
+sequenceDiagram
+    participant SS as SearchService.searchPlugins
+    participant TG as TelegramChannelPlugin
+    participant CFG as config.yaml
+    participant CLI as TGClient(gotd/td)
+    participant CH as Telegram Channel
+    participant RES as []SearchResult
+
+    SS->>TG: SetMainCacheKey + Search(keyword, ext)
+    TG->>CFG: 加载 channels[]（Initialize 阶段已完成）
+    loop 每频道（并发，信号量限流）
+        TG->>CLI: Search(channel, keyword)
+        CLI->>CH: Resolve + MessagesSearch
+        CH-->>CLI: messages
+        CLI-->>TG: raw messages
+        TG->>RES: 解析为 SearchResult{Channel=channel, work_title, Links}
+    end
+    TG-->>SS: []SearchResult（经 BaseAsyncPlugin 双级超时/去重）

@@ -3,6 +3,7 @@ package api
 import (
 	"github.com/gin-gonic/gin"
 	"pansou/config"
+	"pansou/health"
 	"pansou/plugin"
 	"pansou/service"
 	"pansou/util"
@@ -85,7 +86,10 @@ func SetupRouter(searchService *service.SearchService) *gin.Engine {
 			c.JSON(200, response)
 		})
 	}
-	
+
+	// 注册源健康度探针路由（GET /api/health/plugins，POST /api/health/plugins/check）
+	health.RegisterHealthRoutes(api)
+
 	// 注册插件的Web路由（如果插件实现了PluginWithWebHandler接口）
 	// 只有当插件功能启用且插件在启用列表中时才注册路由
 	if config.AppConfig.AsyncPluginEnabled && searchService != nil && searchService.GetPluginManager() != nil {

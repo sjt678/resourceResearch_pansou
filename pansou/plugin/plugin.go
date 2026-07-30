@@ -508,6 +508,11 @@ func (p *BaseAsyncPlugin) SetMainCacheKey(key string) {
 	p.MainCacheKey = key
 }
 
+// GetMainCacheKey 获取主缓存键（供健康探针临时隔离主缓存使用）
+func (p *BaseAsyncPlugin) GetMainCacheKey() string {
+	return p.MainCacheKey
+}
+
 // SetCurrentKeyword 设置当前搜索关键词（用于日志显示）
 func (p *BaseAsyncPlugin) SetCurrentKeyword(keyword string) {
 	p.currentKeyword = keyword

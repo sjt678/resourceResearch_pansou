@@ -1,0 +1,24 @@
+# pansou/plugin/telegram/config.yaml
+#
+# Telegram 频道适配器配置。可被环境变量 TG_CONFIG_PATH 指向的外部文件覆盖。
+#
+# 全局 TG 凭据（api_id / api_hash / session）请通过环境变量设置，不要写在此文件：
+#   TG_API_ID=1234567
+#   TG_API_HASH=abcdef0123456789abcdef0123456789
+#   TG_SESSION_PATH=/path/to/telegram.session
+# 详见 plugin/telegram/README.md
+
+api:
+  session_path: ""   # 留空则读 TG_SESSION_PATH；也可直接写绝对路径
+
+channels:
+  - channel: "example_channel"   # 频道用户名（可带或不带 @ 均可）
+    cloud_type: "quark"          # 该频道主要分享的网盘类型，仅作标签/过滤参考
+    keyword_map: {}              # 可选：类别关键词映射（仅记录，不参与硬过滤）
+    enabled: true
+
+  # - channel: "another_channel"
+  #   cloud_type: "uc"
+  #   keyword_map:
+  #     "电影": "movie"
+  #   enabled: true

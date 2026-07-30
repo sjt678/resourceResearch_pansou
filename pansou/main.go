@@ -18,6 +18,7 @@ import (
 
 	"pansou/api"
 	"pansou/config"
+	"pansou/health"
 	"pansou/plugin"
 	"pansou/service"
 	"pansou/util"
@@ -115,11 +116,25 @@ import (
 	_ "pansou/plugin/mipan"
 	_ "pansou/plugin/panzun"
 	_ "pansou/plugin/quarktv"
-    _ "pansou/plugin/yunso"
+	_ "pansou/plugin/yunso"
+
+	// P3 新增源（任务 T4）
+	_ "pansou/plugin/telegram"
+	_ "pansou/plugin/annasarchive"
+	_ "pansou/plugin/libgen"
+	_ "pansou/plugin/manhuagui"
+	_ "pansou/plugin/1337x"
+	_ "pansou/plugin/zlibrary"
+	_ "pansou/plugin/rutracker"
+	_ "pansou/plugin/torrentgalaxy"
+	_ "pansou/plugin/limetorrents"
 )
 
 // 全局缓存写入管理器
 var globalCacheWriteManager *cache.DelayedBatchWriteManager
+
+// 全局健康探针实例（保留引用，避免被 GC 回收导致调度停止）
+var globalHealthChecker *health.HealthChecker
 
 func main() {
 	// 初始化应用
@@ -162,6 +177,10 @@ func initApp() {
 
 	// 确保异步插件系统初始化
 	plugin.InitAsyncPluginSystem()
+
+	// 启动源健康度探针调度（配置加载后、启动前触发；启动自检在后台运行，不阻塞启动）
+	globalHealthChecker = health.NewHealthChecker()
+	globalHealthChecker.StartScheduler()
 }
 
 // startServer 启动Web服务器

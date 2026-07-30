@@ -109,3 +109,35 @@ Before finishing plugin work, check:
 - Error messages include the plugin name.
 - Any added route is namespaced by plugin name.
 - Tests or build commands were run, or the reason they could not run is reported.
+
+## 快速生成插件脚手架
+
+使用 `make newplugin` 可以一键生成符合本规范的新插件桩代码，避免重复样板：
+
+```bash
+# 方式一：通过 Makefile（推荐）
+make newplugin NAME=foo
+
+# 方式二：直接调用脚本
+bash scripts/newplugin.sh foo
+```
+
+执行后会在 `plugin/foo/` 下生成 `foo.go`，包含：
+
+- `package foo` 与 `init()` 中的 `plugin.RegisterGlobalPlugin(NewFooPlugin())` 示例；
+- 标准 `User-Agent` 常量、`context` 超时、`util.FetchWithRetry` 克隆重试骨架；
+- `Search` / `SearchWithResult` / `searchImpl` 标准三段式骨架；
+- 顶部注释提示「别忘了在 `main.go` 添加空导入 `_ "pansou/plugin/foo"`」。
+
+生成后还需两步：
+
+1. 在 `main.go` 的插件空导入区块加一行 `_ "pansou/plugin/foo"`，否则 `init()` 不会执行、插件不会被注册。
+2. 实现 `searchImpl` 内的真实 URL 与 goquery/正则解析，并确保每个返回结果的 `Links` 非空、`Channel` 普通源留空串、`UniqueID` 以插件名前缀。
+
+校验：
+
+```bash
+go build ./plugin/foo/   # 桩代码应能独立编译通过
+go build ./...           # 全量编译
+```
+
