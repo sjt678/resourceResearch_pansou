@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"fmt"
+	"net/http"
 	"net/url"
 	"os"
 	"regexp"
