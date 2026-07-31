@@ -115,6 +115,7 @@ import (
 	_ "pansou/plugin/lingjisp"
 	_ "pansou/plugin/mipan"
 	_ "pansou/plugin/panzun"
+	_ "pansou/plugin/quarkpanso"
 	_ "pansou/plugin/quarktv"
 	_ "pansou/plugin/yunso"
 
