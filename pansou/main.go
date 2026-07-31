@@ -118,16 +118,8 @@ import (
 	_ "pansou/plugin/quarktv"
 	_ "pansou/plugin/yunso"
 
-	// P3 新增源（任务 T4）
+	// P1 TG 适配器（telegram，需配置 TG 凭据才生效）
 	_ "pansou/plugin/telegram"
-	_ "pansou/plugin/annasarchive"
-	_ "pansou/plugin/libgen"
-	_ "pansou/plugin/manhuagui"
-	_ "pansou/plugin/1337x"
-	_ "pansou/plugin/zlibrary"
-	_ "pansou/plugin/rutracker"
-	_ "pansou/plugin/torrentgalaxy"
-	_ "pansou/plugin/limetorrents"
 )
 
 // 全局缓存写入管理器
