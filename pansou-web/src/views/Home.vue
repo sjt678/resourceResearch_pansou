@@ -324,7 +324,7 @@ watch(
             >
               <span class="source-btn__icon">📡</span>
               <span class="source-btn__text">频道搜索</span>
-              <span class="source-btn__desc">118个TG频道</span>
+              <span class="source-btn__desc">{{ configStore.channelsCount || 143 }}个TG频道</span>
             </button>
             <button
               class="source-btn"
