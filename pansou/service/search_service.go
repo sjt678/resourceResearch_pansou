@@ -594,8 +594,8 @@ func (s *SearchService) searchChannel(keyword string, channel string) ([]model.S
 	// 使用全局HTTP客户端（已配置代理）
 	client := util.GetHTTPClient()
 
-	// 创建一个带超时的上下文
-	ctx, cancel := context.WithTimeout(context.Background(), 4*time.Second)
+	// 使用插件超时（默认30s，可用 PLUGIN_TIMEOUT 调整），避免代理慢时频道请求被掐断
+	ctx, cancel := context.WithTimeout(context.Background(), config.AppConfig.PluginTimeout)
 	defer cancel()
 
 	// 创建请求
