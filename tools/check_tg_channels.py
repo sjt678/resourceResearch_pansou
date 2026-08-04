@@ -27,6 +27,7 @@ import os
 import re
 import sys
 import time
+import random
 import argparse
 import subprocess
 import tempfile
@@ -153,7 +154,8 @@ def main():
             why = why or "复用上次结果"
         else:
             st, why = classify(c)
-            time.sleep(0.3)
+            # 0.3~0.5s 随机间隔，避免固定节奏被 TG 识别为脚本而限流
+            time.sleep(0.3 + random.uniform(0, 0.2))
         results[c] = (st, why)
         if st == "ALIVE":
             alive += 1
