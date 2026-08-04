@@ -1254,7 +1254,22 @@ func (s *SearchService) searchTG(keyword string, channels []string, forceRefresh
 	}
 
 	// 执行搜索任务并获取结果
-	taskResults := pool.ExecuteBatchWithTimeout(tasks, len(channels), config.AppConfig.PluginTimeout)
+	// 并发封顶 40：避免单 IP 对 t.me 瞬时 143 并发触发 Telegram 限流
+	// （mihomo 出口轮换已分摊出口，此处为双保险；实测 143 并发未触发限流，封顶进一步降风险）
+	const tgMaxConcurrency = 40
+	tgWorkers := len(channels)
+	if tgWorkers > tgMaxConcurrency {
+		tgWorkers = tgMaxConcurrency
+	}
+	// 整体超时按批次数放大：封顶并发后分 ceil(N/40) 批，每批最多 PluginTimeout，
+	// 乘 2 留余量（坏节点轮到时单频道可能等满超时），上限 10 分钟防止极端情况卡死
+	tgBatchCount := (len(channels) + tgWorkers - 1) / tgWorkers
+	tgOverallTimeout := time.Duration(int64(tgBatchCount)*2) * config.AppConfig.PluginTimeout
+	const tgMaxOverallTimeout = 10 * time.Minute
+	if tgOverallTimeout > tgMaxOverallTimeout {
+		tgOverallTimeout = tgMaxOverallTimeout
+	}
+	taskResults := pool.ExecuteBatchWithTimeout(tasks, tgWorkers, tgOverallTimeout)
 
 	// 合并所有频道的结果
 	for _, result := range taskResults {
