@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"pansou/model"
@@ -16,9 +17,82 @@ import (
 
 const (
 	SearchURL = "https://www.mipan.so/api/search"
+	TokenURL  = "https://www.mipan.so/api/token"
 	Source    = "mipan"
 	Priority  = 8
 )
+
+// mipan.so 于 2026-08 改版：/api/search 需要 X-Mipan-Token 头鉴权。
+// 先 GET /api/token 拿到 {token, ttl}，再带 X-Mipan-Token 头搜索。
+// token 按 ttl 缓存（留 300s 缓冲），命中 403 则强制刷新重试。
+var (
+	tokenMu     sync.Mutex
+	cachedToken string
+	tokenExp    int64 // unix 秒，过期时间
+)
+
+// obtainToken 获取（缓存的）token；force=true 时忽略缓存强制刷新。
+func (p *MipanPlugin) obtainToken(client *http.Client, force bool) (string, error) {
+	tokenMu.Lock()
+	defer tokenMu.Unlock()
+	if !force && cachedToken != "" && time.Now().Unix() < tokenExp {
+		return cachedToken, nil
+	}
+	return fetchTokenLocked(client)
+}
+
+// fetchTokenLocked 必须在持有 tokenMu 时调用。
+func fetchTokenLocked(client *http.Client) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", TokenURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("[%s] 创建token请求失败: %w", Source, err)
+	}
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("Referer", "https://www.mipan.so/")
+	req.Header.Set("Accept", "application/json, text/plain, */*")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("[%s] 请求token失败: %w", Source, err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != 200 {
+		return "", fmt.Errorf("[%s] token接口状态码 %d: %s", Source, resp.StatusCode, string(body))
+	}
+
+	var tr struct {
+		Token string `json:"token"`
+		TTL   int    `json:"ttl"`
+	}
+	if err := json.Unmarshal(body, &tr); err != nil {
+		return "", fmt.Errorf("[%s] token解析失败: %w (body: %s)", Source, err, string(body))
+	}
+	if tr.Token == "" {
+		return "", fmt.Errorf("[%s] token为空: %s", Source, string(body))
+	}
+
+	cachedToken = tr.Token
+	ttl := tr.TTL
+	if ttl <= 0 {
+		ttl = 7200
+	}
+	tokenExp = time.Now().Unix() + int64(ttl) - 300 // 留 300s 缓冲，与前端一致
+	fmt.Printf("[%s] 获取token成功, ttl=%d\n", Source, ttl)
+	return cachedToken, nil
+}
+
+// invalidateToken 清除缓存的 token（命中 403 时调用）。
+func invalidateToken() {
+	tokenMu.Lock()
+	defer tokenMu.Unlock()
+	cachedToken = ""
+	tokenExp = 0
+}
 
 // 在init函数中注册插件
 func init() {
@@ -55,41 +129,64 @@ func (p *MipanPlugin) doSearch(client *http.Client, keyword string, ext map[stri
 	// mipan.so 的搜索接口使用 GET + query 参数；使用 POST/JSON 会返回空结果
 	reqURL := fmt.Sprintf("%s?kw=%s", SearchURL, url.QueryEscape(keyword))
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+	// 先取 token（2026-08 改版后 /api/search 必须带 X-Mipan-Token）
+	token, err := p.obtainToken(client, false)
 	if err != nil {
-		return nil, fmt.Errorf("[%s] 创建请求失败: %w", Source, err)
+		fmt.Printf("[%s] 获取token失败: %v\n", Source, err)
+		return nil, fmt.Errorf("[%s] 获取token失败: %w", Source, err)
 	}
 
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
-	req.Header.Set("Accept", "application/json, text/plain, */*")
-	req.Header.Set("Referer", "https://www.mipan.so/")
-	req.Header.Set("Origin", "https://www.mipan.so")
-	req.Header.Set("X-Requested-With", "XMLHttpRequest")
+	// 最多重试 1 次：token 过期 / 服务器 IP 变化会导致 403，强制刷新后重试
+	for attempt := 0; attempt < 2; attempt++ {
+		if attempt > 0 {
+			token, err = p.obtainToken(client, true)
+			if err != nil {
+				fmt.Printf("[%s] 刷新token失败: %v\n", Source, err)
+				return nil, fmt.Errorf("[%s] 刷新token失败: %w", Source, err)
+			}
+		}
 
-	resp, err := client.Do(req)
-	if err != nil {
-		fmt.Printf("[%s] 请求失败: %v\n", Source, err)
-		return nil, fmt.Errorf("[%s] 请求失败: %w", Source, err)
-	}
-	defer resp.Body.Close()
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 
-	if resp.StatusCode != 200 {
+		req, err := http.NewRequestWithContext(ctx, "GET", reqURL, nil)
+		if err != nil {
+			cancel()
+			return nil, fmt.Errorf("[%s] 创建请求失败: %w", Source, err)
+		}
+
+		req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+		req.Header.Set("Accept", "application/json, text/plain, */*")
+		req.Header.Set("Referer", "https://www.mipan.so/")
+		req.Header.Set("Origin", "https://www.mipan.so")
+		req.Header.Set("X-Requested-With", "XMLHttpRequest")
+		req.Header.Set("X-Mipan-Token", token)
+
+		resp, err := client.Do(req)
+		if err != nil {
+			cancel()
+			fmt.Printf("[%s] 请求失败: %v\n", Source, err)
+			return nil, fmt.Errorf("[%s] 请求失败: %w", Source, err)
+		}
+
 		respBody, _ := io.ReadAll(resp.Body)
-		fmt.Printf("[%s] 状态码 %d: %s\n", Source, resp.StatusCode, string(respBody))
-		return nil, fmt.Errorf("[%s] 状态码 %d", Source, resp.StatusCode)
+		resp.Body.Close()
+		cancel()
+
+		if resp.StatusCode != 200 {
+			if resp.StatusCode == 403 && attempt == 0 {
+				fmt.Printf("[%s] 状态码 403 (token可能过期/IP变化), 刷新重试: %s\n", Source, string(respBody))
+				invalidateToken()
+				continue
+			}
+			fmt.Printf("[%s] 状态码 %d: %s\n", Source, resp.StatusCode, string(respBody))
+			return nil, fmt.Errorf("[%s] 状态码 %d", Source, resp.StatusCode)
+		}
+
+		fmt.Printf("[%s] 收到响应, 大小: %d bytes, 关键词: %s\n", Source, len(respBody), keyword)
+		return parseMipanResponse(respBody, keyword)
 	}
 
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("[%s] 读取响应失败: %w", Source, err)
-	}
-
-	fmt.Printf("[%s] 收到响应, 大小: %d bytes, 关键词: %s\n", Source, len(respBody), keyword)
-
-	return parseMipanResponse(respBody, keyword)
+	return nil, fmt.Errorf("[%s] 重试后仍返回403", Source)
 }
 
 // ============ 响应解析 ============
