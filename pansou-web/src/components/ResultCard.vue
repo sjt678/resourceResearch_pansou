@@ -78,7 +78,7 @@ const dotTitle = computed(() => {
   >
     <header class="card__head">
       <span class="card__cloud" :style="{ background: cloud.color }">{{ cloud.icon }}</span>
-      <h3 class="card__title" v-html="highlight(note, keyword)" />
+      <h3 class="card__title" :title="note" v-html="highlight(note, keyword)" />
       <!-- 数据源标签 -->
       <span v-if="item._source" class="card__source-tag" :class="`tag--${item._source}`">
         {{ item._source }}
@@ -226,6 +226,12 @@ const dotTitle = computed(() => {
   flex: 1;
   min-width: 0;
   padding-right: 4px;
+  /* 标题过长截断到 3 行：后端部分搜索源（如 TG 频道/mipan）会把整段简介塞进 note 字段，
+     不截断会把单条卡片撑得很高；与 .card__content 的 3 行截断保持视觉一致 */
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 /* 状态圆点 */
