@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"pansou/config"
 	"pansou/model"
 	"pansou/plugin"
 )
@@ -111,16 +112,29 @@ func NewMipanPlugin() *MipanPlugin {
 	}
 }
 
+// newMipanClient 构建 HTTP client；若配置了 PROXY 环境变量则走代理。
+// 原因(2026-08-11): mipan.so 按出口 IP 风控, 服务器 IP(阿里云)已被拉黑, /api/token 返回 403 HTML;
+// 走 mihomo 代理换出口 IP 即可恢复。复用 config.AppConfig.ProxyURL(与 TG/TMDB 同一套代理配置)。
+func newMipanClient() *http.Client {
+	client := &http.Client{Timeout: 15 * time.Second}
+	if config.AppConfig != nil && config.AppConfig.ProxyURL != "" {
+		if proxyURL, err := url.Parse(config.AppConfig.ProxyURL); err == nil {
+			client.Transport = &http.Transport{Proxy: http.ProxyURL(proxyURL)}
+		}
+	}
+	return client
+}
+
 // Search 执行搜索并返回结果（兼容性方法）
 func (p *MipanPlugin) Search(keyword string, ext map[string]interface{}) ([]model.SearchResult, error) {
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := newMipanClient()
 	return p.doSearch(client, keyword, ext)
 }
 
 // AsyncSearch 重写异步搜索方法，直接调用doSearch
 // 不走BaseAsyncPlugin的4秒超时，因为mipan.so搜索数百条结果需要更长时间
 func (p *MipanPlugin) AsyncSearch(keyword string, searchFunc func(*http.Client, string, map[string]interface{}) ([]model.SearchResult, error), mainCacheKey string, ext map[string]interface{}) ([]model.SearchResult, error) {
-	client := &http.Client{Timeout: 15 * time.Second}
+	client := newMipanClient()
 	return p.doSearch(client, keyword, ext)
 }
 
