@@ -33,6 +33,8 @@ services:
       - TMDB_BASE_URL=https://tmdb-proxy.songjt90.workers.dev/3
       # 走 mihomo 代理直接访问 t.me（不再需要 CF Worker 反代）
       - PROXY=socks5://host.docker.internal:7890
+      # mipan 反代（2026-08-13: mipan.so 封所有机房 IP, 走 CF Worker 出口 CF 边缘 IP 绕开; 留空=直连 www.mipan.so）
+      - MIPAN_BASE_URL=https://purple-cherry-c15b.songjt90.workers.dev
       # 源健康度探针（P0）：调度间隔；0=仅启动自检 + 手动 POST /api/health/plugins/check
       - HEALTH_CHECK_INTERVAL=30m
       - HEALTH_PROBE_KEYWORD=测试

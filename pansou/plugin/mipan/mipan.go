@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -17,11 +18,21 @@ import (
 )
 
 const (
-	SearchURL = "https://www.mipan.so/api/search"
-	TokenURL  = "https://www.mipan.so/api/token"
-	Source    = "mipan"
-	Priority  = 8
+	Source   = "mipan"
+	Priority = 8
 )
+
+// getMipanBaseURL 返回 mipan API 基础地址。
+// 默认直连 https://www.mipan.so；可用环境变量 MIPAN_BASE_URL 覆盖为 CF Worker 反代域名
+// （2026-08-13: mipan.so 封所有机房 IP，服务器/机场节点全 403，仅住宅 IP 和 CF 边缘 IP 放行，
+// 故通过 CF Worker 反代（出口为 CF 边缘 IP）绕开封锁）。
+func getMipanBaseURL() string {
+	base := os.Getenv("MIPAN_BASE_URL")
+	if base == "" {
+		base = "https://www.mipan.so"
+	}
+	return strings.TrimRight(base, "/")
+}
 
 // mipan.so 于 2026-08 改版：/api/search 需要 X-Mipan-Token 头鉴权。
 // 先 GET /api/token 拿到 {token, ttl}，再带 X-Mipan-Token 头搜索。
@@ -47,7 +58,7 @@ func fetchTokenLocked(client *http.Client) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", TokenURL, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", getMipanBaseURL()+"/api/token", nil)
 	if err != nil {
 		return "", fmt.Errorf("[%s] 创建token请求失败: %w", Source, err)
 	}
@@ -141,7 +152,7 @@ func (p *MipanPlugin) AsyncSearch(keyword string, searchFunc func(*http.Client, 
 // doSearch 实际的搜索实现
 func (p *MipanPlugin) doSearch(client *http.Client, keyword string, ext map[string]interface{}) ([]model.SearchResult, error) {
 	// mipan.so 的搜索接口使用 GET + query 参数；使用 POST/JSON 会返回空结果
-	reqURL := fmt.Sprintf("%s?kw=%s", SearchURL, url.QueryEscape(keyword))
+	reqURL := fmt.Sprintf("%s/api/search?kw=%s", getMipanBaseURL(), url.QueryEscape(keyword))
 
 	// 先取 token（2026-08 改版后 /api/search 必须带 X-Mipan-Token）
 	token, err := p.obtainToken(client, false)
